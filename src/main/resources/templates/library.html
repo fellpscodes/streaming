@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <title>Streaming pessoal</title>
+</head>
+<body>
+<h1>Minha biblioteca</h1>
+<ul>
+    <li th:each="video : ${videos}">
+        <a th:href="'/api/media/' + ${video.id()} + '/stream'" th:text="${video.displayName()}">Series</a>
+    </li>
+</ul>
+</body>
+</html>
