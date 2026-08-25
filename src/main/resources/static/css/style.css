@@ -1,0 +1,41 @@
+body {
+    background: #111;
+    color: white;
+    font-family: system-ui, sans-serif;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 2rem;
+}
+
+ul {
+    list-style: none;
+    padding: 0;
+}
+
+a {
+    color: #4da3ff;
+    text-decoration: none;
+}
+
+a:hover {
+    color: white;
+}
+
+li {
+    margin-bottom: 0.5rem;
+}
+
+li a {
+    display: block;
+    padding: 1rem;
+    background: #1e1e1e;
+    border-radius: 8px;
+}
+
+li a:hover {
+    background: #2e2e2e;
+}
+
+video {
+    width: 100%;
+}

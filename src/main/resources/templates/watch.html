@@ -5,11 +5,9 @@
     <title>Streaming pessoal</title>
 </head>
 <body>
-<h1>Minha biblioteca</h1>
-<ul>
-    <li th:each="video : ${videos}">
-        <a th:href="'/watch/' + ${video.id()} " th:text="${video.displayName()}">Series</a>
-    </li>
-</ul>
+<h1 th:text="${video.displayName()}">Series</h1>
+<video controls width="800" th:src="'/api/media/' + ${video.id()} + '/stream'"></video>
+
+<a href="/">Voltar</a>
 </body>
 </html>

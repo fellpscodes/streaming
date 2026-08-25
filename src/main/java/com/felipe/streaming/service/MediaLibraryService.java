@@ -12,10 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Stream;
 
 import static org.springframework.web.servlet.function.RouterFunctionDslKt.plus;
@@ -88,5 +85,24 @@ public class MediaLibraryService {
             }
         }
         return Optional.empty();
+    }
+
+    public Map<String, List<MediaFile>> listBySeries() {
+        Map <String, List<MediaFile>> groups = new LinkedHashMap<>();
+        for (MediaFile file : listAll()) {
+            String seriesName = file.path()
+                    .getParent()
+                    .getFileName()
+                    .toString();
+
+            List<MediaFile> list = groups.get(seriesName);
+            if (list == null) {
+                list = new ArrayList<>();
+                groups.put(seriesName, list);
+            }
+            list.add(file);
+        }
+
+        return groups;
     }
 }
