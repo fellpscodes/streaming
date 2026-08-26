@@ -38,4 +38,5 @@ target/
 ### Aplicacao ###
 # Configuracoes locais que nao devem ir para o repositorio
 application-local.properties
-*.log
+*.logm
+.data/

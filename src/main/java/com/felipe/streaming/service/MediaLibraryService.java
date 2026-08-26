@@ -68,6 +68,7 @@ public class MediaLibraryService {
         }
         return result;
     }
+
     public List<MediaFile> listAll() {
         if (cache != null && Instant.now().isBefore(cachedAt.plus(CACHE_TTL))) {
             return cache;
@@ -88,7 +89,7 @@ public class MediaLibraryService {
     }
 
     public Map<String, List<MediaFile>> listBySeries() {
-        Map <String, List<MediaFile>> groups = new LinkedHashMap<>();
+        Map<String, List<MediaFile>> groups = new LinkedHashMap<>();
         for (MediaFile file : listAll()) {
             String seriesName = file.path()
                     .getParent()

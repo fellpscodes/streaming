@@ -26,7 +26,8 @@ li {
 }
 
 li a {
-    display: block;
+    display: flex;
+    justify-content: space-between;
     padding: 1rem;
     background: #1e1e1e;
     border-radius: 8px;
@@ -38,4 +39,8 @@ li a:hover {
 
 video {
     width: 100%;
+}
+
+.size {
+    color: #888;
 }
