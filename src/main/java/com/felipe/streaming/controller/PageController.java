@@ -20,15 +20,15 @@ public class PageController {
     @GetMapping("/")
     public String library(Model model) {
 
-        model.addAttribute("videos", mediaLibraryService.listAll());
+        model.addAttribute("series", mediaLibraryService.listBySeries());
         return "library";
     }
 
     @GetMapping("/watch/{id}")
     public String route(@PathVariable String id, Model model) {
-        Optional<MediaFile> media =  mediaLibraryService.findById(id);
+        Optional<MediaFile> media = mediaLibraryService.findById(id);
 
-        if (media.isEmpty()){
+        if (media.isEmpty()) {
             return "redirect:/";
         }
 
