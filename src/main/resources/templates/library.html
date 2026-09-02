@@ -10,10 +10,14 @@
     <h2 th:text="${group.key}">Nome da série</h2>
     <ul>
         <li th:each="video : ${group.value}">
-            <a th:href="'/watch/' + ${video.id} ">
+            <a th:if="${video.available}" th:href="'/watch/' + ${video.id} ">
                 <span th:text="${video.displayName}">nome</span>
                 <span class="size" th:text="${video.humanSize()}">tamanho</span>
             </a>
+            <span class="unavailable" th:unless="${video.available}">
+                <span th:text="${video.displayName}">nome</span>
+                <span class="size">indisponível</span>
+            </span>
         </li>
     </ul>
 </div>

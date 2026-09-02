@@ -9,6 +9,9 @@ import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
 import org.springframework.stereotype.Service;
 
+import java.util.HashSet;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -24,14 +27,30 @@ public class LibrarySyncService {
 
     public int sync(){
         int count = 0;
+        Set<String> pathsOnDisk = new HashSet<>();
+
         for (MediaFile file : mediaLibraryService.listAll()) {
             String path = file.path().toString();
-            if (mediaItemRepository.findByPath(path).isEmpty()) {
+            pathsOnDisk.add(path);
+
+            Optional<MediaItem> existing = mediaItemRepository.findByPath(path);
+            if (existing.isEmpty()) {
                 MediaItem mediaItem = new MediaItem(UUID.randomUUID().toString(), path, file.displayName(), file.bytes());
                 mediaItemRepository.save(mediaItem);
                 count++;
+            } else if (!existing.get().isAvailable()) {
+                existing.get().setAvailable(true);
+                mediaItemRepository.save(existing.get());
             }
         }
+
+        for (MediaItem item : mediaItemRepository.findAll()) {
+            if (item.isAvailable() && !pathsOnDisk.contains(item.getPath())) {
+                item.setAvailable(false);
+                mediaItemRepository.save(item);
+            }
+        }
+
         return count;
     }
 

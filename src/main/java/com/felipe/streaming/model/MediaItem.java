@@ -9,7 +9,7 @@ public class MediaItem {
     private String path;
     private String displayName;
     private long sizeBytes;
-
+    private boolean available = true;
 
     public MediaItem(String id, String path, String displayName, long sizeBytes) {
         this.id = id;
@@ -36,6 +36,14 @@ public class MediaItem {
 
     public long getSizeBytes() {
         return sizeBytes;
+    }
+
+    public boolean isAvailable() {
+        return available;
+    }
+
+    public void setAvailable(boolean available) {
+        this.available = available;
     }
 
     public String humanSize() {
