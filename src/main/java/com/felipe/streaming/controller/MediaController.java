@@ -14,6 +14,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
@@ -64,6 +66,29 @@ public class MediaController {
         MediaType mediaType = MediaTypeFactory.getMediaType(resource).orElse(MediaType.APPLICATION_OCTET_STREAM);
 
         return ResponseEntity.ok().contentType(mediaType).body(resource);
+    }
+
+    @GetMapping("/api/media/{id}/subtitles")
+    public ResponseEntity<Resource> subtitles(@PathVariable String id) {
+        Optional<MediaItem> mediaItem = mediaCatalogService.findById(id);
+        if (mediaItem.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        MediaItem item = mediaItem.get();
+        Path videoPath = Path.of(item.getPath());
+        String fileName = videoPath.getFileName().toString();
+        int lastDot = fileName.lastIndexOf('.');
+        String baseName = lastDot >= 0 ? fileName.substring(0, lastDot) : fileName;
+        Path subtitlePath = videoPath.resolveSibling(baseName + ".vtt");
+
+        if (!Files.exists(subtitlePath)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Resource resource = new FileSystemResource(subtitlePath);
+
+        return ResponseEntity.ok().contentType(MediaType.valueOf("text/vtt")).body(resource);
     }
 
     @PostMapping("/api/library/sync")

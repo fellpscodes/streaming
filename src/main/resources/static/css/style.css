@@ -44,3 +44,33 @@ video {
 .size {
     color: #888;
 }
+
+.subtitle-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin: 1rem 0;
+}
+
+.subtitle-controls button {
+    background: #1e1e1e;
+    color: white;
+    border: 1px solid #444;
+    border-radius: 4px;
+    padding: 0.3rem 0.7rem;
+    cursor: pointer;
+}
+
+.subtitle-controls button:hover {
+    background: #2e2e2e;
+}
+
+.unavailable {
+    display: flex;
+    justify-content: space-between;
+    padding: 1rem;
+    background: #1e1e1e;
+    border-radius: 8px;
+    color: #666;
+    opacity: 0.6;
+}

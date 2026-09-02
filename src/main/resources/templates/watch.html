@@ -3,11 +3,42 @@
 <head>
     <link rel="stylesheet" href="/css/style.css">
     <title>Streaming pessoal</title>
+    <style id="subtitle-style"></style>
 </head>
 <body>
 <h1 th:text="${video.displayName}">Series</h1>
-<video controls width="800" th:src="'/api/media/' + ${video.id} + '/stream'"></video>
+<video id="player" controls width="800" th:src="'/api/media/' + ${video.id} + '/stream'">
+    <track kind="subtitles" th:src="'/api/media/' + ${video.id} + '/subtitles'" srclang="pt" label="Português" default>
+</video>
+
+<div class="subtitle-controls">
+    <span>Legenda:</span>
+    <button id="subtitle-decrease">A-</button>
+    <button id="subtitle-increase">A+</button>
+</div>
 
 <a href="/">Voltar</a>
+
+<script th:inline="none">
+    const subtitleStyleTag = document.getElementById('subtitle-style');
+    let subtitleSize = parseInt(localStorage.getItem('subtitleSize')) || 24;
+
+    function applySubtitleSize() {
+        subtitleStyleTag.textContent = '#player::cue { font-size: ' + subtitleSize + 'px; }';
+        localStorage.setItem('subtitleSize', subtitleSize);
+    }
+
+    applySubtitleSize();
+
+    document.getElementById('subtitle-increase').addEventListener('click', () => {
+        subtitleSize += 2;
+        applySubtitleSize();
+    });
+
+    document.getElementById('subtitle-decrease').addEventListener('click', () => {
+        subtitleSize = Math.max(10, subtitleSize - 2);
+        applySubtitleSize();
+    });
+</script>
 </body>
 </html>
