@@ -37,4 +37,9 @@ public class MediaItem {
     public long getSizeBytes() {
         return sizeBytes;
     }
+
+    public String humanSize() {
+        double gigaBytes = sizeBytes / 1024.0 / 1024.0 / 1024.0;
+        return String.format("%.2f GB", gigaBytes);
+    }
 }

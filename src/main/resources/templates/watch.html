@@ -5,8 +5,8 @@
     <title>Streaming pessoal</title>
 </head>
 <body>
-<h1 th:text="${video.displayName()}">Series</h1>
-<video controls width="800" th:src="'/api/media/' + ${video.id()} + '/stream'"></video>
+<h1 th:text="${video.displayName}">Series</h1>
+<video controls width="800" th:src="'/api/media/' + ${video.id} + '/stream'"></video>
 
 <a href="/">Voltar</a>
 </body>

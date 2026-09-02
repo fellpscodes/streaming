@@ -1,7 +1,7 @@
 package com.felipe.streaming.controller;
 
-import com.felipe.streaming.model.MediaFile;
-import com.felipe.streaming.service.MediaLibraryService;
+import com.felipe.streaming.model.MediaItem;
+import com.felipe.streaming.service.MediaCatalogService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -11,22 +11,22 @@ import java.util.Optional;
 
 @Controller
 public class PageController {
-    private final MediaLibraryService mediaLibraryService;
+    private final MediaCatalogService mediaCatalogService;
 
-    public PageController(MediaLibraryService mediaLibraryService) {
-        this.mediaLibraryService = mediaLibraryService;
+    public PageController(MediaCatalogService mediaCatalogService) {
+        this.mediaCatalogService = mediaCatalogService;
     }
 
     @GetMapping("/")
     public String library(Model model) {
 
-        model.addAttribute("series", mediaLibraryService.listBySeries());
+        model.addAttribute("series", mediaCatalogService.listBySeries());
         return "library";
     }
 
     @GetMapping("/watch/{id}")
     public String route(@PathVariable String id, Model model) {
-        Optional<MediaFile> media = mediaLibraryService.findById(id);
+        Optional<MediaItem> media = mediaCatalogService.findById(id);
 
         if (media.isEmpty()) {
             return "redirect:/";

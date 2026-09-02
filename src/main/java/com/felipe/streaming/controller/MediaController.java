@@ -1,9 +1,9 @@
 package com.felipe.streaming.controller;
 
 import com.felipe.streaming.dto.MediaFileResponse;
-import com.felipe.streaming.model.MediaFile;
+import com.felipe.streaming.model.MediaItem;
 import com.felipe.streaming.service.LibrarySyncService;
-import com.felipe.streaming.service.MediaLibraryService;
+import com.felipe.streaming.service.MediaCatalogService;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
@@ -20,46 +20,46 @@ import java.util.Optional;
 
 @RestController
 public class MediaController {
-    private final MediaLibraryService mediaLibraryService;
+    private final MediaCatalogService mediaCatalogService;
     private final LibrarySyncService librarySyncService;
 
-    public MediaController(MediaLibraryService mediaLibraryService,  LibrarySyncService librarySyncService) {
-        this.mediaLibraryService = mediaLibraryService;
+    public MediaController(MediaCatalogService mediaCatalogService,  LibrarySyncService librarySyncService) {
+        this.mediaCatalogService = mediaCatalogService;
         this.librarySyncService = librarySyncService;
     }
 
     @GetMapping("/api/media")
     public List<MediaFileResponse> listAll() {
         List<MediaFileResponse> response = new ArrayList<>();
-        for (MediaFile mediaFile : mediaLibraryService.listAll()) {
-            response.add(new MediaFileResponse(mediaFile.id(), mediaFile.displayName(), mediaFile.bytes()));
+        for (MediaItem mediaItem : mediaCatalogService.listAll()) {
+            response.add(new MediaFileResponse(mediaItem.getId(), mediaItem.getDisplayName(), mediaItem.getSizeBytes()));
         }
         return response;
     }
 
     @GetMapping("/api/media/{id}")
     public ResponseEntity<MediaFileResponse> getById(@PathVariable String id) {
-        Optional<MediaFile> mediaFile = mediaLibraryService.findById(id);
-        if (mediaFile.isEmpty()) {
+        Optional<MediaItem> mediaItem = mediaCatalogService.findById(id);
+        if (mediaItem.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
-        MediaFile file = mediaFile.get();
+        MediaItem item = mediaItem.get();
 
-        MediaFileResponse mediaFileResponse = new MediaFileResponse(file.id(), file.displayName(), file.bytes());
+        MediaFileResponse mediaFileResponse = new MediaFileResponse(item.getId(), item.getDisplayName(), item.getSizeBytes());
 
         return ResponseEntity.ok(mediaFileResponse);
     }
 
     @GetMapping("/api/media/{id}/stream")
     public ResponseEntity<Resource> stream(@PathVariable String id) {
-        Optional<MediaFile> mediaFile = mediaLibraryService.findById(id);
-        if (mediaFile.isEmpty()) {
+        Optional<MediaItem> mediaItem = mediaCatalogService.findById(id);
+        if (mediaItem.isEmpty()) {
             return ResponseEntity.notFound().build();
         }
 
-        MediaFile file = mediaFile.get();
+        MediaItem item = mediaItem.get();
 
-        Resource resource = new FileSystemResource(file.path());
+        Resource resource = new FileSystemResource(item.getPath());
 
         MediaType mediaType = MediaTypeFactory.getMediaType(resource).orElse(MediaType.APPLICATION_OCTET_STREAM);
 
