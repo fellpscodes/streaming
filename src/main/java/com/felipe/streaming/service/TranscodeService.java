@@ -109,7 +109,7 @@ public class TranscodeService {
         boolean ok = runProcess(List.of(
                 ffmpegPath, "-y", "-v", "error",
                 "-i", original.toString(),
-                "-map", "0:v:0", "-map", "0:a:0",
+                "-map", "0:v:0", "-map", "0:a:0", "-map_chapters", "0",
                 "-c:v", "h264_amf", "-quality", "quality", "-rc", "cqp", "-qp_i", "18", "-qp_p", "20",
                 "-pix_fmt", "yuv420p",
                 "-c:a", "aac", "-b:a", "192k",
