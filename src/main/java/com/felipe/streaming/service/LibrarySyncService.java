@@ -18,16 +18,19 @@ import java.util.UUID;
 public class LibrarySyncService {
     private final MediaLibraryService mediaLibraryService;
     private final MediaItemRepository mediaItemRepository;
+    private final MediaCatalogService mediaCatalogService;
     private static final Logger log = LoggerFactory.getLogger(LibrarySyncService.class);
 
-    public LibrarySyncService(MediaLibraryService mediaLibraryService, MediaItemRepository mediaItemRepository) {
+    public LibrarySyncService(MediaLibraryService mediaLibraryService, MediaItemRepository mediaItemRepository, MediaCatalogService mediaCatalogService) {
         this.mediaLibraryService = mediaLibraryService;
         this.mediaItemRepository = mediaItemRepository;
+        this.mediaCatalogService = mediaCatalogService;
     }
 
     public int sync(){
         int count = 0;
         Set<String> pathsOnDisk = new HashSet<>();
+        Set<String> newSeriesNames = new HashSet<>();
 
         for (MediaFile file : mediaLibraryService.listAll()) {
             String path = file.path().toString();
@@ -38,6 +41,7 @@ public class LibrarySyncService {
                 MediaItem mediaItem = new MediaItem(UUID.randomUUID().toString(), path, file.displayName(), file.bytes());
                 mediaItemRepository.save(mediaItem);
                 count++;
+                newSeriesNames.add(mediaCatalogService.seriesNameOf(mediaItem));
             } else if (!existing.get().isAvailable()) {
                 existing.get().setAvailable(true);
                 mediaItemRepository.save(existing.get());
@@ -48,6 +52,14 @@ public class LibrarySyncService {
             if (item.isAvailable() && !pathsOnDisk.contains(item.getPath())) {
                 item.setAvailable(false);
                 mediaItemRepository.save(item);
+            }
+        }
+
+        for (String seriesName : newSeriesNames) {
+            boolean alreadyHasPoster = mediaCatalogService.listEpisodesInSeries(seriesName).stream()
+                    .anyMatch(item -> item.getPosterUrl() != null);
+            if (!alreadyHasPoster) {
+                mediaCatalogService.fetchPoster(seriesName);
             }
         }
 

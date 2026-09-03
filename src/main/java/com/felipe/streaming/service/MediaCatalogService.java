@@ -10,9 +10,11 @@ import java.util.*;
 @Service
 public class MediaCatalogService {
     private final MediaItemRepository mediaItemRepository;
+    private final PosterService posterService;
 
-    public MediaCatalogService(MediaItemRepository mediaItemRepository) {
+    public MediaCatalogService(MediaItemRepository mediaItemRepository, PosterService posterService) {
         this.mediaItemRepository = mediaItemRepository;
+        this.posterService = posterService;
     }
 
     public List<MediaItem> listAll(){
@@ -23,10 +25,33 @@ public class MediaCatalogService {
         return mediaItemRepository.findById(id);
     }
 
+    public void updateProgress(String id, double positionSeconds, double durationSeconds) {
+        MediaItem item = mediaItemRepository.findById(id).orElseThrow();
+        item.updateProgress(positionSeconds, durationSeconds);
+        mediaItemRepository.save(item);
+    }
+
+    public void updateTitle(String id, String displayName) {
+        MediaItem item = mediaItemRepository.findById(id).orElseThrow();
+        item.setDisplayName(displayName);
+        mediaItemRepository.save(item);
+    }
+
+    public List<MediaItem> listContinueWatching() {
+        List<MediaItem> items = new ArrayList<>();
+        for (MediaItem item : listAll()) {
+            if (item.isInProgress()) {
+                items.add(item);
+            }
+        }
+        items.sort(Comparator.comparing(MediaItem::getLastWatchedAt).reversed());
+        return items;
+    }
+
     public Map<String, List<MediaItem>> listBySeries() {
         Map<String, List<MediaItem>> groups = new LinkedHashMap<>();
         for (MediaItem item : listAll()) {
-            String seriesName = Path.of(item.getPath()).getParent().getFileName().toString();
+            String seriesName = seriesNameOf(item);
             List<MediaItem> list = groups.get(seriesName);
             if (list == null) {
                 list = new ArrayList<>();
@@ -35,5 +60,84 @@ public class MediaCatalogService {
             list.add(item);
         }
         return groups;
+    }
+
+    public String seriesNameOf(MediaItem item) {
+        return Path.of(item.getPath()).getParent().getFileName().toString();
+    }
+
+    public List<MediaItem> listEpisodesInSeries(String seriesName) {
+        List<MediaItem> episodes = listBySeries().getOrDefault(seriesName, new ArrayList<>());
+        episodes.sort(Comparator.comparing(MediaItem::getDisplayName));
+        return episodes;
+    }
+
+    public boolean isSeries(MediaItem item) {
+        return listBySeries().getOrDefault(seriesNameOf(item), List.of()).size() > 1;
+    }
+
+    public Map<String, List<MediaItem>> listMovies() {
+        Map<String, List<MediaItem>> movies = new LinkedHashMap<>();
+        for (Map.Entry<String, List<MediaItem>> group : listBySeries().entrySet()) {
+            if (group.getValue().size() == 1) {
+                movies.put(group.getKey(), group.getValue());
+            }
+        }
+        return movies;
+    }
+
+    public Map<String, List<MediaItem>> listAnimes() {
+        Map<String, List<MediaItem>> animes = new LinkedHashMap<>();
+        for (Map.Entry<String, List<MediaItem>> group : listBySeries().entrySet()) {
+            if (group.getValue().size() > 1) {
+                animes.put(group.getKey(), group.getValue());
+            }
+        }
+        return animes;
+    }
+
+    public Optional<MediaItem> findNextEpisode(MediaItem item) {
+        List<MediaItem> episodes = listEpisodesInSeries(seriesNameOf(item));
+        int index = -1;
+        for (int i = 0; i < episodes.size(); i++) {
+            if (episodes.get(i).getId().equals(item.getId())) {
+                index = i;
+                break;
+            }
+        }
+        if (index < 0 || index + 1 >= episodes.size()) {
+            return Optional.empty();
+        }
+        return Optional.of(episodes.get(index + 1));
+    }
+
+    public boolean fetchPoster(String seriesName) {
+        List<MediaItem> items = listEpisodesInSeries(seriesName);
+        if (items.isEmpty()) {
+            return false;
+        }
+
+        Optional<String> posterUrl = items.size() == 1
+                ? posterService.fetchMoviePoster(items.get(0).getDisplayName())
+                : posterService.fetchAnimePoster(seriesName);
+
+        if (posterUrl.isEmpty()) {
+            return false;
+        }
+
+        for (MediaItem item : items) {
+            item.setPosterUrl(posterUrl.get());
+            mediaItemRepository.save(item);
+        }
+
+        return true;
+    }
+
+    public int deleteSeries(String seriesName) {
+        List<MediaItem> episodes = listEpisodesInSeries(seriesName);
+        for (MediaItem episode : episodes) {
+            mediaItemRepository.deleteById(episode.getId());
+        }
+        return episodes.size();
     }
 }

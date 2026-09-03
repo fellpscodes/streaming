@@ -6,20 +6,125 @@
 </head>
 <body>
 <h1>Minha biblioteca</h1>
-<div th:each="group : ${series}">
-    <h2 th:text="${group.key}">Nome da série</h2>
-    <ul>
-        <li th:each="video : ${group.value}">
-            <a th:if="${video.available}" th:href="'/watch/' + ${video.id} ">
-                <span th:text="${video.displayName}">nome</span>
-                <span class="size" th:text="${video.humanSize()}">tamanho</span>
-            </a>
-            <span class="unavailable" th:unless="${video.available}">
-                <span th:text="${video.displayName}">nome</span>
-                <span class="size">indisponível</span>
-            </span>
-        </li>
-    </ul>
+
+<input type="text" id="search" placeholder="Buscar..." class="search-box">
+
+<div th:if="${not #lists.isEmpty(continueWatching)}" class="category">
+    <h2>Continuar assistindo</h2>
+    <div class="card-grid continue-grid">
+        <a th:each="video : ${continueWatching}" th:href="'/watch/' + ${video.id}" class="card continue-card">
+            <div class="card-poster continue-poster">
+                <img th:src="'/api/media/' + ${video.id} + '/thumbnail'" alt="">
+                <span class="play-overlay">▶</span>
+                <span class="remaining-badge" th:text="${video.remainingTime()}">Xm restantes</span>
+            </div>
+            <span class="card-caption" th:if="${@mediaCatalogService.isSeries(video)}" th:text="${@mediaCatalogService.seriesNameOf(video)}">série</span>
+            <span class="card-title" th:text="${video.displayName}">nome</span>
+        </a>
+    </div>
 </div>
+
+<div th:if="${not #maps.isEmpty(movies)}" class="category">
+    <h2>Filmes</h2>
+    <div class="card-grid">
+        <div th:each="group : ${movies}" class="card-wrapper media-item" th:attr="data-name=${group.key}">
+            <a th:if="${group.value[0].available}" th:href="'/watch/' + ${group.value[0].id}" class="card">
+                <div class="card-poster">
+                    <img th:src="${group.value[0].posterUrl != null ? group.value[0].posterUrl : '/api/media/' + group.value[0].id + '/thumbnail'}" alt="">
+                </div>
+                <span class="card-title" th:text="${group.value[0].displayName}">nome</span>
+            </a>
+            <div th:unless="${group.value[0].available}" class="card card-unavailable">
+                <div class="card-poster">
+                    <img th:src="${group.value[0].posterUrl != null ? group.value[0].posterUrl : '/api/media/' + group.value[0].id + '/thumbnail'}" alt="">
+                </div>
+                <span class="card-title" th:text="${group.value[0].displayName}">nome</span>
+                <span class="card-subtitle">indisponível</span>
+            </div>
+            <div class="card-actions">
+                <button class="fetch-poster-btn" th:attr="data-series=${group.key}">Buscar capa</button>
+                <button class="remove-series-btn" th:attr="data-series=${group.key}">Remover</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div th:if="${not #maps.isEmpty(animes)}" class="category">
+    <h2>Animes</h2>
+    <div class="card-grid">
+        <div th:each="group : ${animes}" class="card-wrapper media-item" th:attr="data-name=${group.key}">
+            <a th:href="'/series/' + ${group.key}" class="card">
+                <div class="card-poster">
+                    <img th:src="${group.value[0].posterUrl != null ? group.value[0].posterUrl : '/api/media/' + group.value[0].id + '/thumbnail'}" alt="">
+                </div>
+                <span class="card-title" th:text="${group.key}">nome</span>
+                <span class="card-subtitle" th:text="${#lists.size(group.value)} + ' episódios'">N episódios</span>
+            </a>
+            <div class="card-actions">
+                <button class="fetch-poster-btn" th:attr="data-series=${group.key}">Buscar capa</button>
+                <button class="remove-series-btn" th:attr="data-series=${group.key}">Remover</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script th:inline="none">
+    const searchInput = document.getElementById('search');
+
+    searchInput.addEventListener('input', () => {
+        const query = searchInput.value.toLowerCase();
+
+        document.querySelectorAll('.category').forEach(category => {
+            if (category.querySelector('.media-item') === null) {
+                return;
+            }
+
+            let anyVisible = false;
+
+            category.querySelectorAll('.media-item').forEach(item => {
+                const matches = item.dataset.name.toLowerCase().includes(query);
+                item.style.display = matches ? '' : 'none';
+                if (matches) {
+                    anyVisible = true;
+                }
+            });
+
+            category.style.display = anyVisible ? '' : 'none';
+        });
+    });
+
+    document.querySelectorAll('.fetch-poster-btn').forEach(button => {
+        button.addEventListener('click', () => {
+            const seriesName = button.dataset.series;
+            button.textContent = 'Buscando...';
+
+            fetch('/api/series/' + encodeURIComponent(seriesName) + '/poster', { method: 'POST' })
+                .then(response => {
+                    if (response.ok) {
+                        location.reload();
+                    } else {
+                        button.textContent = 'Não encontrada';
+                    }
+                });
+        });
+    });
+
+    document.querySelectorAll('.remove-series-btn').forEach(button => {
+        button.addEventListener('click', () => {
+            const seriesName = button.dataset.series;
+
+            if (!confirm('Remover "' + seriesName + '" do banco de dados? O arquivo no disco não é apagado.')) {
+                return;
+            }
+
+            fetch('/api/series/' + encodeURIComponent(seriesName), { method: 'DELETE' })
+                .then(response => {
+                    if (response.ok) {
+                        location.reload();
+                    }
+                });
+        });
+    });
+</script>
 </body>
 </html>

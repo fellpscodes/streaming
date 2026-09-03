@@ -20,7 +20,9 @@ public class PageController {
     @GetMapping("/")
     public String library(Model model) {
 
-        model.addAttribute("series", mediaCatalogService.listBySeries());
+        model.addAttribute("movies", mediaCatalogService.listMovies());
+        model.addAttribute("animes", mediaCatalogService.listAnimes());
+        model.addAttribute("continueWatching", mediaCatalogService.listContinueWatching());
         return "library";
     }
 
@@ -32,7 +34,24 @@ public class PageController {
             return "redirect:/";
         }
 
-        model.addAttribute("video", media.get());
+        MediaItem item = media.get();
+        boolean isSeries = mediaCatalogService.isSeries(item);
+
+        model.addAttribute("video", item);
+        model.addAttribute("isSeries", isSeries);
+
+        if (isSeries) {
+            model.addAttribute("seriesName", mediaCatalogService.seriesNameOf(item));
+            model.addAttribute("nextEpisode", mediaCatalogService.findNextEpisode(item).orElse(null));
+        }
+
         return "watch";
+    }
+
+    @GetMapping("/series/{seriesName}")
+    public String series(@PathVariable String seriesName, Model model) {
+        model.addAttribute("seriesName", seriesName);
+        model.addAttribute("episodes", mediaCatalogService.listEpisodesInSeries(seriesName));
+        return "series";
     }
 }
