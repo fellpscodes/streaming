@@ -195,6 +195,29 @@ video {
     transform: translateX(-50%);
 }
 
+.skip-btn[hidden] {
+    display: none;
+}
+
+.skip-btn {
+    position: absolute;
+    right: 1.5rem;
+    bottom: 5.6rem;
+    padding: 0.6rem 1.1rem;
+    background: rgba(20, 20, 20, 0.85);
+    color: white;
+    border: 1px solid #555;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    z-index: 4;
+}
+
+.skip-btn:hover {
+    background: rgba(40, 40, 40, 0.95);
+    border-color: #4da3ff;
+}
+
 .settings-menu[hidden] {
     display: none;
 }

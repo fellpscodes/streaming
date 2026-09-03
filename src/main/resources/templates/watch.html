@@ -23,6 +23,8 @@
         </div>
     </div>
 
+    <button id="skip-btn" class="skip-btn" type="button" hidden></button>
+
     <div id="controls-bar" class="controls-bar">
         <div id="seek-bar" class="seek-bar">
             <div id="seek-buffered" class="seek-buffered"></div>
@@ -109,6 +111,46 @@
     const fullscreenBtn = document.getElementById('fullscreen-btn');
     const iconFsEnter = document.getElementById('icon-fs-enter');
     const iconFsExit = document.getElementById('icon-fs-exit');
+    const skipBtn = document.getElementById('skip-btn');
+
+    let skipSegments = [];
+    let endingStart = null;
+
+    const SKIP_LABELS = { opening: 'Pular abertura', ending: 'Pular encerramento' };
+
+    async function setupSkipSegments() {
+        const response = await fetch('/api/media/' + mediaId + '/skip-segments');
+        skipSegments = response.ok ? await response.json() : [];
+
+        const ending = skipSegments.find(segment => segment.type === 'ending');
+        if (ending) {
+            endingStart = ending.start;
+        }
+    }
+
+    function updateSkipButton() {
+        const current = player.currentTime;
+        const active = skipSegments.find(segment => current >= segment.start && current < segment.end);
+
+        if (!active) {
+            skipBtn.hidden = true;
+            return;
+        }
+
+        const nextEpisodeLink = document.querySelector('.next-episode-card');
+        const isEndingWithNext = active.type === 'ending' && nextEpisodeLink;
+
+        skipBtn.hidden = false;
+        skipBtn.textContent = isEndingWithNext ? 'Próximo episódio' : (SKIP_LABELS[active.type] || 'Pular');
+        skipBtn.onclick = () => {
+            if (isEndingWithNext) {
+                sendProgress();
+                window.location.href = nextEpisodeLink.href;
+                return;
+            }
+            player.currentTime = active.end;
+        };
+    }
 
     const LANGUAGE_LABELS = {
         por: 'Português', eng: 'Inglês', enm: 'Inglês', spa: 'Espanhol',
@@ -220,6 +262,7 @@
     });
 
     setupSubtitles();
+    setupSkipSegments();
 
     function formatTime(seconds) {
         if (!isFinite(seconds) || seconds < 0) {
@@ -278,6 +321,7 @@
     player.addEventListener('timeupdate', () => {
         updateTimeDisplay();
         updateSeekBar();
+        updateSkipButton();
     });
     player.addEventListener('progress', updateSeekBar);
     player.addEventListener('durationchange', updateTimeDisplay);
@@ -386,8 +430,12 @@
     }
 
     function progressBody() {
+        let position = player.currentTime;
+        if (endingStart !== null && position >= endingStart) {
+            position = player.duration;
+        }
         return JSON.stringify({
-            positionSeconds: player.currentTime,
+            positionSeconds: position,
             durationSeconds: player.duration
         });
     }

@@ -2,9 +2,11 @@ package com.felipe.streaming.controller;
 
 import com.felipe.streaming.dto.MediaFileResponse;
 import com.felipe.streaming.dto.ProgressRequest;
+import com.felipe.streaming.dto.SkipSegmentResponse;
 import com.felipe.streaming.dto.SubtitleTrackResponse;
 import com.felipe.streaming.dto.TitleRequest;
 import com.felipe.streaming.model.MediaItem;
+import com.felipe.streaming.service.ChapterService;
 import com.felipe.streaming.service.LibrarySyncService;
 import com.felipe.streaming.service.MediaCatalogService;
 import com.felipe.streaming.service.SubtitleService;
@@ -41,13 +43,15 @@ public class MediaController {
     private final ThumbnailService thumbnailService;
     private final SubtitleService subtitleService;
     private final TranscodeService transcodeService;
+    private final ChapterService chapterService;
 
-    public MediaController(MediaCatalogService mediaCatalogService, LibrarySyncService librarySyncService, ThumbnailService thumbnailService, SubtitleService subtitleService, TranscodeService transcodeService) {
+    public MediaController(MediaCatalogService mediaCatalogService, LibrarySyncService librarySyncService, ThumbnailService thumbnailService, SubtitleService subtitleService, TranscodeService transcodeService, ChapterService chapterService) {
         this.mediaCatalogService = mediaCatalogService;
         this.librarySyncService = librarySyncService;
         this.thumbnailService = thumbnailService;
         this.subtitleService = subtitleService;
         this.transcodeService = transcodeService;
+        this.chapterService = chapterService;
     }
 
     @GetMapping("/api/media")
@@ -72,6 +76,20 @@ public class MediaController {
         return ResponseEntity.ok(mediaFileResponse);
     }
 
+    @GetMapping("/api/media/{id}/skip-segments")
+    public ResponseEntity<List<SkipSegmentResponse>> skipSegments(@PathVariable String id) {
+        Optional<MediaItem> mediaItem = mediaCatalogService.findById(id);
+        if (mediaItem.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        return ResponseEntity.ok(chapterService.listSegments(playablePath(mediaItem.get())));
+    }
+
+    private Path playablePath(MediaItem item) {
+        return transcodeService.transcodedFile(item.getId()).orElse(Path.of(item.getPath()));
+    }
+
     private static final long STREAM_CHUNK_SIZE = 2 * 1024 * 1024;
 
     @GetMapping("/api/media/{id}/stream")
@@ -83,7 +101,7 @@ public class MediaController {
 
         MediaItem item = mediaItem.get();
 
-        Path playablePath = transcodeService.transcodedFile(id).orElse(Path.of(item.getPath()));
+        Path playablePath = playablePath(item);
         Resource resource = new FileSystemResource(playablePath);
         MediaType mediaType = MediaTypeFactory.getMediaType(resource).orElse(MediaType.APPLICATION_OCTET_STREAM);
         long contentLength = resource.contentLength();
