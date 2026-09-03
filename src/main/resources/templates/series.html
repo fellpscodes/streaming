@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <link rel="stylesheet" href="/css/style.css">
+    <title>Streaming pessoal</title>
+</head>
+<body>
+<h1 th:text="${seriesName}">Série</h1>
+<ul>
+    <li th:each="episode : ${episodes}">
+        <a th:if="${episode.available}" th:href="'/watch/' + ${episode.id}">
+            <span th:text="${episode.displayName}">nome</span>
+            <span class="size" th:text="${episode.isWatched()} ? 'assistido' : 'restante'">status</span>
+        </a>
+        <span class="unavailable" th:unless="${episode.available}">
+            <span th:text="${episode.displayName}">nome</span>
+            <span class="size">indisponível</span>
+        </span>
+    </li>
+</ul>
+
+<a href="/">Voltar</a>
+</body>
+</html>

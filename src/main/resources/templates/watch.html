@@ -3,41 +3,87 @@
 <head>
     <link rel="stylesheet" href="/css/style.css">
     <title>Streaming pessoal</title>
-    <style id="subtitle-style"></style>
 </head>
 <body>
-<h1 th:text="${video.displayName}">Series</h1>
-<video id="player" controls width="800" th:src="'/api/media/' + ${video.id} + '/stream'">
+<div class="title-row">
+    <h1 id="title" th:text="${video.displayName}">Series</h1>
+    <button id="edit-title-btn">Editar título</button>
+</div>
+<video id="player" controls width="800"
+       th:src="'/api/media/' + ${video.id} + '/stream'"
+       th:data-id="${video.id}"
+       th:data-resume="${video.lastPositionSeconds}">
     <track kind="subtitles" th:src="'/api/media/' + ${video.id} + '/subtitles'" srclang="pt" label="Português" default>
 </video>
 
-<div class="subtitle-controls">
-    <span>Legenda:</span>
-    <button id="subtitle-decrease">A-</button>
-    <button id="subtitle-increase">A+</button>
+<div th:if="${isSeries}" class="episode-nav">
+    <a th:if="${nextEpisode}" th:href="'/watch/' + ${nextEpisode.id}" class="next-episode-card">
+        <span class="label">Próximo episódio</span>
+        <span th:text="${nextEpisode.displayName}">Nome do episódio</span>
+    </a>
+    <a th:href="'/series/' + ${seriesName}">Ver episódios</a>
 </div>
 
 <a href="/">Voltar</a>
 
 <script th:inline="none">
-    const subtitleStyleTag = document.getElementById('subtitle-style');
-    let subtitleSize = parseInt(localStorage.getItem('subtitleSize')) || 24;
+    const player = document.getElementById('player');
+    const mediaId = player.dataset.id;
+    const resumeAt = parseFloat(player.dataset.resume);
 
-    function applySubtitleSize() {
-        subtitleStyleTag.textContent = '#player::cue { font-size: ' + subtitleSize + 'px; }';
-        localStorage.setItem('subtitleSize', subtitleSize);
-    }
-
-    applySubtitleSize();
-
-    document.getElementById('subtitle-increase').addEventListener('click', () => {
-        subtitleSize += 2;
-        applySubtitleSize();
+    player.addEventListener('loadedmetadata', () => {
+        if (resumeAt > 0 && resumeAt < player.duration * 0.95) {
+            player.currentTime = resumeAt;
+        }
     });
 
-    document.getElementById('subtitle-decrease').addEventListener('click', () => {
-        subtitleSize = Math.max(10, subtitleSize - 2);
-        applySubtitleSize();
+    function progressBody() {
+        return JSON.stringify({
+            positionSeconds: player.currentTime,
+            durationSeconds: player.duration
+        });
+    }
+
+    function sendProgress() {
+        if (!player.duration) {
+            return;
+        }
+        fetch('/api/media/' + mediaId + '/progress', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: progressBody()
+        });
+    }
+
+    function sendProgressOnUnload() {
+        if (!player.duration) {
+            return;
+        }
+        const blob = new Blob([progressBody()], { type: 'application/json' });
+        navigator.sendBeacon('/api/media/' + mediaId + '/progress', blob);
+    }
+
+    setInterval(sendProgress, 10000);
+    player.addEventListener('pause', sendProgress);
+    window.addEventListener('beforeunload', sendProgressOnUnload);
+
+    document.getElementById('edit-title-btn').addEventListener('click', () => {
+        const titleEl = document.getElementById('title');
+        const newTitle = prompt('Novo título:', titleEl.textContent);
+
+        if (newTitle === null || newTitle.trim() === '') {
+            return;
+        }
+
+        fetch('/api/media/' + mediaId + '/title', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ displayName: newTitle.trim() })
+        }).then(response => {
+            if (response.ok) {
+                titleEl.textContent = newTitle.trim();
+            }
+        });
     });
 </script>
 </body>
