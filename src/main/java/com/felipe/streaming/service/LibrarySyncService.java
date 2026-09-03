@@ -19,12 +19,16 @@ public class LibrarySyncService {
     private final MediaLibraryService mediaLibraryService;
     private final MediaItemRepository mediaItemRepository;
     private final MediaCatalogService mediaCatalogService;
+    private final ThumbnailService thumbnailService;
+    private final TranscodeService transcodeService;
     private static final Logger log = LoggerFactory.getLogger(LibrarySyncService.class);
 
-    public LibrarySyncService(MediaLibraryService mediaLibraryService, MediaItemRepository mediaItemRepository, MediaCatalogService mediaCatalogService) {
+    public LibrarySyncService(MediaLibraryService mediaLibraryService, MediaItemRepository mediaItemRepository, MediaCatalogService mediaCatalogService, ThumbnailService thumbnailService, TranscodeService transcodeService) {
         this.mediaLibraryService = mediaLibraryService;
         this.mediaItemRepository = mediaItemRepository;
         this.mediaCatalogService = mediaCatalogService;
+        this.thumbnailService = thumbnailService;
+        this.transcodeService = transcodeService;
     }
 
     public int sync(){
@@ -42,6 +46,7 @@ public class LibrarySyncService {
                 mediaItemRepository.save(mediaItem);
                 count++;
                 newSeriesNames.add(mediaCatalogService.seriesNameOf(mediaItem));
+                thumbnailService.generateThumbnail(mediaItem);
             } else if (!existing.get().isAvailable()) {
                 existing.get().setAvailable(true);
                 mediaItemRepository.save(existing.get());
@@ -60,6 +65,12 @@ public class LibrarySyncService {
                     .anyMatch(item -> item.getPosterUrl() != null);
             if (!alreadyHasPoster) {
                 mediaCatalogService.fetchPoster(seriesName);
+            }
+        }
+
+        for (MediaItem item : mediaItemRepository.findAll()) {
+            if (item.isAvailable()) {
+                transcodeService.queueTranscode(item);
             }
         }
 

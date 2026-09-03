@@ -4,38 +4,386 @@
     <link rel="stylesheet" href="/css/style.css">
     <title>Streaming pessoal</title>
 </head>
-<body>
-<div class="title-row">
-    <h1 id="title" th:text="${video.displayName}">Series</h1>
-    <button id="edit-title-btn">Editar título</button>
-</div>
-<video id="player" controls width="800"
-       th:src="'/api/media/' + ${video.id} + '/stream'"
-       th:data-id="${video.id}"
-       th:data-resume="${video.lastPositionSeconds}">
-    <track kind="subtitles" th:src="'/api/media/' + ${video.id} + '/subtitles'" srclang="pt" label="Português" default>
-</video>
+<body class="watch-page">
+<div class="player-wrapper" id="player-wrapper">
+    <video id="player"
+           th:src="'/api/media/' + ${video.id} + '/stream'"
+           th:data-id="${video.id}"
+           th:data-resume="${video.lastPositionSeconds}">
+    </video>
 
-<div th:if="${isSeries}" class="episode-nav">
-    <a th:if="${nextEpisode}" th:href="'/watch/' + ${nextEpisode.id}" class="next-episode-card">
+    <div id="settings-menu" class="settings-menu" hidden>
+        <div class="settings-col">
+            <h3>Áudio</h3>
+            <ul id="audio-list" class="settings-list"></ul>
+        </div>
+        <div class="settings-col">
+            <h3>Legendas/CC</h3>
+            <ul id="subtitle-list" class="settings-list"></ul>
+        </div>
+    </div>
+
+    <div id="controls-bar" class="controls-bar">
+        <div id="seek-bar" class="seek-bar">
+            <div id="seek-buffered" class="seek-buffered"></div>
+            <div id="seek-progress" class="seek-progress"></div>
+            <div id="seek-thumb" class="seek-thumb"></div>
+        </div>
+        <div class="controls-row">
+            <button id="play-btn" class="control-btn" type="button" aria-label="Reproduzir">
+                <svg id="icon-play" viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M8 5v14l11-7z"/></svg>
+                <svg id="icon-pause" viewBox="0 0 24 24" width="26" height="26" hidden><path fill="currentColor" d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
+            </button>
+
+            <div class="volume-group">
+                <button id="volume-btn" class="control-btn" type="button" aria-label="Mudo">
+                    <svg id="icon-vol-on" viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M3 10v4h4l5 5V5L7 10H3zm13.5 2A4.5 4.5 0 0 0 14 7.97v8.05A4.5 4.5 0 0 0 16.5 12zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                    <svg id="icon-vol-off" viewBox="0 0 24 24" width="26" height="26" hidden><path fill="currentColor" d="M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.42.05-.63zm2.5 0c0 .94-.2 1.82-.54 2.64l1.51 1.51C20.63 14.91 21 13.5 21 12c0-4.28-2.99-7.86-7-8.77v2.06c2.89.86 5 3.54 5 6.71zM4.27 3 3 4.27 7.73 9H3v6h4l5 5v-6.73l4.25 4.25c-.67.52-1.42.93-2.25 1.18v2.06a8.99 8.99 0 0 0 3.69-1.81L19.73 21 21 19.73l-9-9L4.27 3zM12 4 9.91 6.09 12 8.18V4z"/></svg>
+                </button>
+                <input id="volume-slider" class="volume-slider" type="range" min="0" max="1" step="0.05" value="1">
+            </div>
+
+            <span id="time-display" class="time-display">0:00 / 0:00</span>
+
+            <div class="controls-spacer"></div>
+
+            <button id="settings-btn" class="control-btn" type="button" aria-label="Áudio e legendas" hidden>
+                <svg viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M4 19h4v-2H4v2ZM4 5v2h10V5H4Zm10 16v-2h6v-2h-6v-2h-2v6h2ZM8 9v2H4v2h4v2h2V9H8Zm12 4v-2H10v2h10Zm-6-4h2V7h4V5h-4V3h-2v6Z"/></svg>
+            </button>
+
+            <button id="fullscreen-btn" class="control-btn" type="button" aria-label="Tela cheia">
+                <svg id="icon-fs-enter" viewBox="0 0 24 24" width="26" height="26"><path fill="currentColor" d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>
+                <svg id="icon-fs-exit" viewBox="0 0 24 24" width="26" height="26" hidden><path fill="currentColor" d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>
+            </button>
+        </div>
+    </div>
+</div>
+
+<div class="watch-info">
+    <div class="watch-details">
+        <span class="watch-series" th:if="${isSeries}" th:text="${seriesName}">Série</span>
+        <div class="title-row">
+            <h1 id="title" th:text="${video.displayName}">Series</h1>
+            <button id="edit-title-btn">Editar título</button>
+        </div>
+        <a th:if="${isSeries}" th:href="'/series/' + ${seriesName}">Ver episódios</a>
+        <a href="/">Voltar</a>
+    </div>
+
+    <div th:if="${nextEpisode}" class="watch-next">
         <span class="label">Próximo episódio</span>
-        <span th:text="${nextEpisode.displayName}">Nome do episódio</span>
-    </a>
-    <a th:href="'/series/' + ${seriesName}">Ver episódios</a>
+        <a th:href="'/watch/' + ${nextEpisode.id}" class="next-episode-card">
+            <div class="next-episode-thumb">
+                <img th:src="'/api/media/' + ${nextEpisode.id} + '/thumbnail'" alt="">
+            </div>
+            <span th:text="${nextEpisode.displayName}">Nome do episódio</span>
+        </a>
+    </div>
 </div>
 
-<a href="/">Voltar</a>
+<script type="module" th:inline="none">
+    import JASSUB from '/js/jassub/jassub.js';
 
-<script th:inline="none">
     const player = document.getElementById('player');
     const mediaId = player.dataset.id;
     const resumeAt = parseFloat(player.dataset.resume);
+    const wrapper = document.getElementById('player-wrapper');
+    const settingsBtn = document.getElementById('settings-btn');
+    const settingsMenu = document.getElementById('settings-menu');
+    const audioList = document.getElementById('audio-list');
+    const subtitleList = document.getElementById('subtitle-list');
 
-    player.addEventListener('loadedmetadata', () => {
+    const controlsBar = document.getElementById('controls-bar');
+    const playBtn = document.getElementById('play-btn');
+    const iconPlay = document.getElementById('icon-play');
+    const iconPause = document.getElementById('icon-pause');
+    const volumeBtn = document.getElementById('volume-btn');
+    const iconVolOn = document.getElementById('icon-vol-on');
+    const iconVolOff = document.getElementById('icon-vol-off');
+    const volumeSlider = document.getElementById('volume-slider');
+    const timeDisplay = document.getElementById('time-display');
+    const seekBar = document.getElementById('seek-bar');
+    const seekBuffered = document.getElementById('seek-buffered');
+    const seekProgress = document.getElementById('seek-progress');
+    const seekThumb = document.getElementById('seek-thumb');
+    const fullscreenBtn = document.getElementById('fullscreen-btn');
+    const iconFsEnter = document.getElementById('icon-fs-enter');
+    const iconFsExit = document.getElementById('icon-fs-exit');
+
+    const LANGUAGE_LABELS = {
+        por: 'Português', eng: 'Inglês', enm: 'Inglês', spa: 'Espanhol',
+        jpn: 'Japonês', fre: 'Francês', fra: 'Francês', ger: 'Alemão',
+        ita: 'Italiano', rus: 'Russo', ara: 'Árabe', und: 'Desconhecido'
+    };
+
+    let jassubInstance = null;
+
+    function languageLabel(code) {
+        return LANGUAGE_LABELS[code] || code.toUpperCase();
+    }
+
+    function buildAudioList() {
+        audioList.innerHTML = '';
+        const item = document.createElement('li');
+        item.className = 'settings-item selected';
+        const label = document.createElement('span');
+        label.textContent = 'Japonês';
+        const check = document.createElement('span');
+        check.className = 'check';
+        check.textContent = '✓';
+        item.append(label, check);
+        audioList.appendChild(item);
+    }
+
+    function selectSubtitle(index, fontUrls, selectedEl) {
+        subtitleList.querySelectorAll('.settings-item').forEach(el => el.classList.remove('selected'));
+        selectedEl.classList.add('selected');
+
+        if (jassubInstance) {
+            jassubInstance.destroy();
+            jassubInstance = null;
+        }
+
+        if (index === null) {
+            return;
+        }
+
+        jassubInstance = new JASSUB({
+            video: player,
+            subUrl: '/api/media/' + mediaId + '/subtitle-tracks/' + index,
+            fonts: fontUrls
+        });
+    }
+
+    function buildSubtitleMenu(tracks, fontUrls) {
+        subtitleList.innerHTML = '';
+
+        const noneItem = document.createElement('li');
+        noneItem.className = 'settings-item';
+        noneItem.textContent = 'Nenhum';
+        noneItem.addEventListener('click', () => selectSubtitle(null, fontUrls, noneItem));
+        subtitleList.appendChild(noneItem);
+
+        let preferredItem = noneItem;
+        let preferredIndex = null;
+
+        for (const track of tracks) {
+            const item = document.createElement('li');
+            item.className = 'settings-item';
+            const label = document.createElement('span');
+            label.textContent = languageLabel(track.language) + (track.title ? ' - ' + track.title : '');
+            item.appendChild(label);
+            item.addEventListener('click', () => selectSubtitle(track.index, fontUrls, item));
+            subtitleList.appendChild(item);
+
+            if (preferredIndex === null && track.language === 'por') {
+                preferredItem = item;
+                preferredIndex = track.index;
+            }
+        }
+
+        selectSubtitle(preferredIndex, fontUrls, preferredItem);
+    }
+
+    async function setupSubtitles() {
+        const tracksResponse = await fetch('/api/media/' + mediaId + '/subtitle-tracks');
+        const tracks = tracksResponse.ok ? await tracksResponse.json() : [];
+
+        if (tracks.length === 0) {
+            const track = document.createElement('track');
+            track.kind = 'subtitles';
+            track.src = '/api/media/' + mediaId + '/subtitles';
+            track.srclang = 'pt';
+            track.label = 'Português';
+            track.default = true;
+            player.appendChild(track);
+            return;
+        }
+
+        const fontsResponse = await fetch('/api/media/' + mediaId + '/subtitle-fonts');
+        const fontFiles = fontsResponse.ok ? await fontsResponse.json() : [];
+        const fontUrls = fontFiles.map(name => '/api/media/' + mediaId + '/subtitle-fonts/' + name);
+
+        buildAudioList();
+        buildSubtitleMenu(tracks, fontUrls);
+        settingsBtn.hidden = false;
+    }
+
+    settingsBtn.addEventListener('click', () => {
+        settingsMenu.hidden = !settingsMenu.hidden;
+    });
+
+    document.addEventListener('click', (event) => {
+        if (!settingsMenu.hidden && !wrapper.contains(event.target)) {
+            settingsMenu.hidden = true;
+        }
+    });
+
+    setupSubtitles();
+
+    function formatTime(seconds) {
+        if (!isFinite(seconds) || seconds < 0) {
+            seconds = 0;
+        }
+        const total = Math.floor(seconds);
+        const h = Math.floor(total / 3600);
+        const m = Math.floor((total % 3600) / 60);
+        const s = total % 60;
+        const mm = h > 0 ? String(m).padStart(2, '0') : String(m);
+        const ss = String(s).padStart(2, '0');
+        return h > 0 ? h + ':' + mm + ':' + ss : mm + ':' + ss;
+    }
+
+    function updatePlayIcon() {
+        iconPlay.hidden = !player.paused;
+        iconPause.hidden = player.paused;
+        playBtn.setAttribute('aria-label', player.paused ? 'Reproduzir' : 'Pausar');
+    }
+
+    function updateVolumeIcon() {
+        const muted = player.muted || player.volume === 0;
+        iconVolOn.hidden = muted;
+        iconVolOff.hidden = !muted;
+        volumeSlider.value = muted ? 0 : player.volume;
+    }
+
+    function updateTimeDisplay() {
+        timeDisplay.textContent = formatTime(player.currentTime) + ' / ' + formatTime(player.duration);
+    }
+
+    function updateSeekBar() {
+        if (!player.duration) {
+            return;
+        }
+        const percent = (player.currentTime / player.duration) * 100;
+        seekProgress.style.width = percent + '%';
+        seekThumb.style.left = percent + '%';
+
+        if (player.buffered.length > 0) {
+            const bufferedEnd = player.buffered.end(player.buffered.length - 1);
+            seekBuffered.style.width = (bufferedEnd / player.duration) * 100 + '%';
+        }
+    }
+
+    playBtn.addEventListener('click', () => {
+        if (player.paused) {
+            player.play();
+        } else {
+            player.pause();
+        }
+    });
+
+    player.addEventListener('play', updatePlayIcon);
+    player.addEventListener('pause', updatePlayIcon);
+    player.addEventListener('timeupdate', () => {
+        updateTimeDisplay();
+        updateSeekBar();
+    });
+    player.addEventListener('progress', updateSeekBar);
+    player.addEventListener('durationchange', updateTimeDisplay);
+    player.addEventListener('volumechange', updateVolumeIcon);
+
+    player.addEventListener('click', () => {
+        if (player.paused) {
+            player.play();
+        } else {
+            player.pause();
+        }
+    });
+
+    player.addEventListener('dblclick', () => {
+        toggleFullscreen();
+    });
+
+    volumeBtn.addEventListener('click', () => {
+        player.muted = !player.muted;
+    });
+
+    volumeSlider.addEventListener('input', () => {
+        player.volume = parseFloat(volumeSlider.value);
+        player.muted = player.volume === 0;
+    });
+
+    function seekToPointer(event) {
+        const rect = seekBar.getBoundingClientRect();
+        const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+        if (player.duration) {
+            player.currentTime = ratio * player.duration;
+            updateSeekBar();
+        }
+    }
+
+    let seeking = false;
+    seekBar.addEventListener('pointerdown', (event) => {
+        seeking = true;
+        seekBar.setPointerCapture(event.pointerId);
+        seekToPointer(event);
+    });
+    seekBar.addEventListener('pointermove', (event) => {
+        if (seeking) {
+            seekToPointer(event);
+        }
+    });
+    seekBar.addEventListener('pointerup', (event) => {
+        seeking = false;
+        seekBar.releasePointerCapture(event.pointerId);
+    });
+
+    function toggleFullscreen() {
+        if (document.fullscreenElement) {
+            document.exitFullscreen();
+        } else {
+            wrapper.requestFullscreen();
+        }
+    }
+
+    fullscreenBtn.addEventListener('click', toggleFullscreen);
+
+    document.addEventListener('fullscreenchange', () => {
+        const isFullscreen = !!document.fullscreenElement;
+        iconFsEnter.hidden = isFullscreen;
+        iconFsExit.hidden = !isFullscreen;
+        wrapper.classList.toggle('is-fullscreen', isFullscreen);
+    });
+
+    let hideTimer = null;
+    function showControls() {
+        wrapper.classList.remove('controls-hidden');
+        clearTimeout(hideTimer);
+        if (!player.paused) {
+            hideTimer = setTimeout(() => {
+                if (settingsMenu.hidden) {
+                    wrapper.classList.add('controls-hidden');
+                }
+            }, 2500);
+        }
+    }
+
+    wrapper.addEventListener('mousemove', showControls);
+    wrapper.addEventListener('mouseleave', () => {
+        if (!player.paused && settingsMenu.hidden) {
+            wrapper.classList.add('controls-hidden');
+        }
+    });
+    player.addEventListener('play', showControls);
+    player.addEventListener('pause', showControls);
+
+    updateVolumeIcon();
+    updatePlayIcon();
+    updateTimeDisplay();
+    showControls();
+
+    function applyResume() {
         if (resumeAt > 0 && resumeAt < player.duration * 0.95) {
             player.currentTime = resumeAt;
         }
-    });
+    }
+
+    if (player.readyState >= 1) {
+        applyResume();
+    } else {
+        player.addEventListener('loadedmetadata', applyResume, { once: true });
+    }
 
     function progressBody() {
         return JSON.stringify({
