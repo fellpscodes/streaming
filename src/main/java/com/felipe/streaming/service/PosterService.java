@@ -1,28 +1,63 @@
 package com.felipe.streaming.service;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class PosterService {
+    private static final Logger log = LoggerFactory.getLogger(PosterService.class);
+
     private final RestClient restClient = RestClient.create();
     private final String tmdbApiKey;
 
-    public PosterService(@Value("${tmdb.api-key}") String tmdbApiKey) {
+    public PosterService(@Value("${tmdb.api-key:}") String tmdbApiKey) {
         this.tmdbApiKey = tmdbApiKey;
     }
 
-    public Optional<String> fetchMoviePoster(String title) {
+    private static final Pattern YEAR_PATTERN = Pattern.compile("\\b(19|20)\\d{2}\\b");
+    private static final Pattern HANDLE_TAG_PATTERN = Pattern.compile("@\\S+");
+
+    public Optional<String> fetchMoviePoster(String rawTitle) {
+        if (tmdbApiKey.isBlank()) {
+            log.warn("tmdb.api-key nao configurada (crie application-local.properties) - busca de capa de filme ignorada");
+            return Optional.empty();
+        }
+
         try {
+            String year = null;
+            Matcher yearMatcher = YEAR_PATTERN.matcher(rawTitle);
+            if (yearMatcher.find()) {
+                year = yearMatcher.group();
+            }
+
+            String cleanedTitle = HANDLE_TAG_PATTERN.matcher(rawTitle).replaceAll("").trim();
+            if (year != null) {
+                cleanedTitle = cleanedTitle.replace(year, "").trim();
+            }
+
+            UriComponentsBuilder uriBuilder = UriComponentsBuilder
+                    .fromUriString("https://api.themoviedb.org/3/search/movie")
+                    .queryParam("api_key", tmdbApiKey)
+                    .queryParam("query", cleanedTitle);
+
+            if (year != null) {
+                uriBuilder.queryParam("primary_release_year", year);
+            }
+
             TmdbSearchResponse response = restClient.get()
-                    .uri("https://api.themoviedb.org/3/search/movie?api_key={key}&query={query}", tmdbApiKey, title)
+                    .uri(uriBuilder.build().toUri())
                     .retrieve()
                     .body(TmdbSearchResponse.class);
 
@@ -37,6 +72,7 @@ public class PosterService {
 
             return Optional.of("https://image.tmdb.org/t/p/w500" + posterPath);
         } catch (Exception e) {
+            log.warn("Falha ao buscar capa no TMDB para '{}'", rawTitle, e);
             return Optional.empty();
         }
     }
@@ -77,6 +113,7 @@ public class PosterService {
 
             return Optional.ofNullable(response.data().media().coverImage().large());
         } catch (Exception e) {
+            log.warn("Falha ao buscar capa no AniList para '{}'", title, e);
             return Optional.empty();
         }
     }
@@ -94,6 +131,7 @@ public class PosterService {
 
             return Optional.ofNullable(response.data().get(0).attributes().posterImage().large());
         } catch (Exception e) {
+            log.warn("Falha ao buscar capa no Kitsu para '{}'", title, e);
             return Optional.empty();
         }
     }

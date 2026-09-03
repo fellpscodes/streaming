@@ -7,7 +7,7 @@
 <body>
 <h1>Minha biblioteca</h1>
 
-<input type="text" id="search" placeholder="Buscar..." class="search-box">
+<input type="text" id="search" placeholder="Buscar..." class="search-box" autocomplete="off">
 
 <div th:if="${not #lists.isEmpty(continueWatching)}" class="category">
     <h2>Continuar assistindo</h2>
@@ -16,6 +16,7 @@
             <div class="card-poster continue-poster">
                 <img th:src="'/api/media/' + ${video.id} + '/thumbnail'" alt="">
                 <span class="play-overlay">▶</span>
+                <button class="remove-progress-btn" th:attr="data-id=${video.id}" title="Remover de continuar assistindo">×</button>
                 <span class="remaining-badge" th:text="${video.remainingTime()}">Xm restantes</span>
             </div>
             <span class="card-caption" th:if="${@mediaCatalogService.isSeries(video)}" th:text="${@mediaCatalogService.seriesNameOf(video)}">série</span>
@@ -27,7 +28,7 @@
 <div th:if="${not #maps.isEmpty(movies)}" class="category">
     <h2>Filmes</h2>
     <div class="card-grid">
-        <div th:each="group : ${movies}" class="card-wrapper media-item" th:attr="data-name=${group.key}">
+        <div th:each="group : ${movies}" class="card-wrapper media-item" th:attr="data-name=${group.value[0].displayName}">
             <a th:if="${group.value[0].available}" th:href="'/watch/' + ${group.value[0].id}" class="card">
                 <div class="card-poster">
                     <img th:src="${group.value[0].posterUrl != null ? group.value[0].posterUrl : '/api/media/' + group.value[0].id + '/thumbnail'}" alt="">
@@ -41,10 +42,7 @@
                 <span class="card-title" th:text="${group.value[0].displayName}">nome</span>
                 <span class="card-subtitle">indisponível</span>
             </div>
-            <div class="card-actions">
-                <button class="fetch-poster-btn" th:attr="data-series=${group.key}">Buscar capa</button>
-                <button class="remove-series-btn" th:attr="data-series=${group.key}">Remover</button>
-            </div>
+            <button class="remove-series-btn" th:attr="data-series=${group.key}">Remover</button>
         </div>
     </div>
 </div>
@@ -60,10 +58,21 @@
                 <span class="card-title" th:text="${group.key}">nome</span>
                 <span class="card-subtitle" th:text="${#lists.size(group.value)} + ' episódios'">N episódios</span>
             </a>
-            <div class="card-actions">
-                <button class="fetch-poster-btn" th:attr="data-series=${group.key}">Buscar capa</button>
-                <button class="remove-series-btn" th:attr="data-series=${group.key}">Remover</button>
-            </div>
+            <button class="remove-series-btn" th:attr="data-series=${group.key}">Remover</button>
+        </div>
+    </div>
+</div>
+
+<footer class="page-footer">
+    <button id="sync-btn">Sincronizar biblioteca</button>
+</footer>
+
+<div id="confirm-overlay" class="modal-overlay" hidden>
+    <div class="modal-box">
+        <p id="confirm-message"></p>
+        <div class="modal-actions">
+            <button id="confirm-cancel">Cancelar</button>
+            <button id="confirm-remove">Remover</button>
         </div>
     </div>
 </div>
@@ -93,37 +102,67 @@
         });
     });
 
-    document.querySelectorAll('.fetch-poster-btn').forEach(button => {
-        button.addEventListener('click', () => {
-            const seriesName = button.dataset.series;
-            button.textContent = 'Buscando...';
+    const confirmOverlay = document.getElementById('confirm-overlay');
+    const confirmMessage = document.getElementById('confirm-message');
+    const confirmCancelBtn = document.getElementById('confirm-cancel');
+    const confirmRemoveBtn = document.getElementById('confirm-remove');
+    let seriesToRemove = null;
 
-            fetch('/api/series/' + encodeURIComponent(seriesName) + '/poster', { method: 'POST' })
+    document.querySelectorAll('.remove-series-btn').forEach(button => {
+        button.addEventListener('click', () => {
+            seriesToRemove = button.dataset.series;
+            confirmMessage.textContent = 'Remover "' + seriesToRemove + '" do banco de dados? O arquivo no disco não é apagado.';
+            confirmOverlay.hidden = false;
+        });
+    });
+
+    confirmCancelBtn.addEventListener('click', () => {
+        confirmOverlay.hidden = true;
+        seriesToRemove = null;
+    });
+
+    confirmOverlay.addEventListener('click', (event) => {
+        if (event.target === confirmOverlay) {
+            confirmOverlay.hidden = true;
+            seriesToRemove = null;
+        }
+    });
+
+    confirmRemoveBtn.addEventListener('click', () => {
+        if (seriesToRemove === null) {
+            return;
+        }
+
+        fetch('/api/series/' + encodeURIComponent(seriesToRemove), { method: 'DELETE' })
+            .then(response => {
+                if (response.ok) {
+                    location.reload();
+                }
+            });
+    });
+
+    document.querySelectorAll('.remove-progress-btn').forEach(button => {
+        button.addEventListener('click', (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+
+            const mediaId = button.dataset.id;
+
+            fetch('/api/media/' + mediaId + '/progress', { method: 'DELETE' })
                 .then(response => {
                     if (response.ok) {
-                        location.reload();
-                    } else {
-                        button.textContent = 'Não encontrada';
+                        button.closest('.continue-card').remove();
                     }
                 });
         });
     });
 
-    document.querySelectorAll('.remove-series-btn').forEach(button => {
-        button.addEventListener('click', () => {
-            const seriesName = button.dataset.series;
+    document.getElementById('sync-btn').addEventListener('click', () => {
+        const syncBtn = document.getElementById('sync-btn');
+        syncBtn.textContent = 'Sincronizando...';
 
-            if (!confirm('Remover "' + seriesName + '" do banco de dados? O arquivo no disco não é apagado.')) {
-                return;
-            }
-
-            fetch('/api/series/' + encodeURIComponent(seriesName), { method: 'DELETE' })
-                .then(response => {
-                    if (response.ok) {
-                        location.reload();
-                    }
-                });
-        });
+        fetch('/api/library/sync', { method: 'POST' })
+            .then(() => location.reload());
     });
 </script>
 </body>

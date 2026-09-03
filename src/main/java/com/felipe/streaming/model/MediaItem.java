@@ -81,6 +81,10 @@ public class MediaItem {
         this.lastWatchedAt = Instant.now();
     }
 
+    public void clearProgress() {
+        this.lastPositionSeconds = 0;
+    }
+
     public boolean isInProgress() {
         if (lastPositionSeconds <= 0 || durationSeconds <= 0) {
             return false;

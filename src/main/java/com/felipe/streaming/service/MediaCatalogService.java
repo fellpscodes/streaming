@@ -31,6 +31,12 @@ public class MediaCatalogService {
         mediaItemRepository.save(item);
     }
 
+    public void clearProgress(String id) {
+        MediaItem item = mediaItemRepository.findById(id).orElseThrow();
+        item.clearProgress();
+        mediaItemRepository.save(item);
+    }
+
     public void updateTitle(String id, String displayName) {
         MediaItem item = mediaItemRepository.findById(id).orElseThrow();
         item.setDisplayName(displayName);
@@ -73,13 +79,13 @@ public class MediaCatalogService {
     }
 
     public boolean isSeries(MediaItem item) {
-        return listBySeries().getOrDefault(seriesNameOf(item), List.of()).size() > 1;
+        return countAvailable(listBySeries().getOrDefault(seriesNameOf(item), List.of())) > 1;
     }
 
     public Map<String, List<MediaItem>> listMovies() {
         Map<String, List<MediaItem>> movies = new LinkedHashMap<>();
         for (Map.Entry<String, List<MediaItem>> group : listBySeries().entrySet()) {
-            if (group.getValue().size() == 1) {
+            if (countAvailable(group.getValue()) <= 1) {
                 movies.put(group.getKey(), group.getValue());
             }
         }
@@ -89,11 +95,15 @@ public class MediaCatalogService {
     public Map<String, List<MediaItem>> listAnimes() {
         Map<String, List<MediaItem>> animes = new LinkedHashMap<>();
         for (Map.Entry<String, List<MediaItem>> group : listBySeries().entrySet()) {
-            if (group.getValue().size() > 1) {
+            if (countAvailable(group.getValue()) > 1) {
                 animes.put(group.getKey(), group.getValue());
             }
         }
         return animes;
+    }
+
+    private long countAvailable(List<MediaItem> items) {
+        return items.stream().filter(MediaItem::isAvailable).count();
     }
 
     public Optional<MediaItem> findNextEpisode(MediaItem item) {
@@ -117,8 +127,14 @@ public class MediaCatalogService {
             return false;
         }
 
-        Optional<String> posterUrl = items.size() == 1
-                ? posterService.fetchMoviePoster(items.get(0).getDisplayName())
+        boolean isMovie = countAvailable(items) <= 1;
+        MediaItem representative = items.stream()
+                .filter(MediaItem::isAvailable)
+                .findFirst()
+                .orElse(items.get(0));
+
+        Optional<String> posterUrl = isMovie
+                ? posterService.fetchMoviePoster(representative.getDisplayName())
                 : posterService.fetchAnimePoster(seriesName);
 
         if (posterUrl.isEmpty()) {

@@ -39,4 +39,4 @@ target/
 # Configuracoes locais que nao devem ir para o repositorio
 application-local.properties
 *.logm
-.data/
+data/
