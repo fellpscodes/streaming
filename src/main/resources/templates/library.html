@@ -31,13 +31,15 @@
         <div th:each="group : ${movies}" class="card-wrapper media-item" th:attr="data-name=${group.value[0].displayName}">
             <a th:if="${group.value[0].available}" th:href="'/watch/' + ${group.value[0].id}" class="card">
                 <div class="card-poster">
-                    <img th:src="${group.value[0].posterUrl != null ? group.value[0].posterUrl : '/api/media/' + group.value[0].id + '/thumbnail'}" alt="">
+                    <img th:src="${group.value[0].posterUrl != null ? group.value[0].posterUrl : '/api/media/' + group.value[0].id + '/thumbnail'}"
+                         th:attr="onerror=|this.onerror=null;this.src='/api/media/${group.value[0].id}/thumbnail';|" alt="">
                 </div>
                 <span class="card-title" th:text="${group.value[0].displayName}">nome</span>
             </a>
             <div th:unless="${group.value[0].available}" class="card card-unavailable">
                 <div class="card-poster">
-                    <img th:src="${group.value[0].posterUrl != null ? group.value[0].posterUrl : '/api/media/' + group.value[0].id + '/thumbnail'}" alt="">
+                    <img th:src="${group.value[0].posterUrl != null ? group.value[0].posterUrl : '/api/media/' + group.value[0].id + '/thumbnail'}"
+                         th:attr="onerror=|this.onerror=null;this.src='/api/media/${group.value[0].id}/thumbnail';|" alt="">
                 </div>
                 <span class="card-title" th:text="${group.value[0].displayName}">nome</span>
                 <span class="card-subtitle">indisponível</span>
@@ -53,7 +55,8 @@
         <div th:each="group : ${animes}" class="card-wrapper media-item" th:attr="data-name=${group.key}">
             <a th:href="'/series/' + ${group.key}" class="card">
                 <div class="card-poster">
-                    <img th:src="${group.value[0].posterUrl != null ? group.value[0].posterUrl : '/api/media/' + group.value[0].id + '/thumbnail'}" alt="">
+                    <img th:src="${group.value[0].posterUrl != null ? group.value[0].posterUrl : '/api/media/' + group.value[0].id + '/thumbnail'}"
+                         th:attr="onerror=|this.onerror=null;this.src='/api/media/${group.value[0].id}/thumbnail';|" alt="">
                 </div>
                 <span class="card-title" th:text="${group.key}">nome</span>
                 <span class="card-subtitle" th:text="${#lists.size(group.value)} + ' episódios'">N episódios</span>
