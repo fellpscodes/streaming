@@ -11,10 +11,12 @@ import java.util.*;
 public class MediaCatalogService {
     private final MediaItemRepository mediaItemRepository;
     private final PosterService posterService;
+    private final PosterImageService posterImageService;
 
-    public MediaCatalogService(MediaItemRepository mediaItemRepository, PosterService posterService) {
+    public MediaCatalogService(MediaItemRepository mediaItemRepository, PosterService posterService, PosterImageService posterImageService) {
         this.mediaItemRepository = mediaItemRepository;
         this.posterService = posterService;
+        this.posterImageService = posterImageService;
     }
 
     public List<MediaItem> listAll(){
@@ -141,8 +143,11 @@ public class MediaCatalogService {
             return false;
         }
 
+        posterImageService.downloadAndCache(seriesName, posterUrl.get());
+        String localPosterUrl = "/api/series/" + seriesName + "/poster-image";
+
         for (MediaItem item : items) {
-            item.setPosterUrl(posterUrl.get());
+            item.setPosterUrl(localPosterUrl);
             mediaItemRepository.save(item);
         }
 

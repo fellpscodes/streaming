@@ -9,6 +9,7 @@ import com.felipe.streaming.model.MediaItem;
 import com.felipe.streaming.service.ChapterService;
 import com.felipe.streaming.service.LibrarySyncService;
 import com.felipe.streaming.service.MediaCatalogService;
+import com.felipe.streaming.service.PosterImageService;
 import com.felipe.streaming.service.SubtitleService;
 import com.felipe.streaming.service.ThumbnailService;
 import com.felipe.streaming.service.TranscodeService;
@@ -44,14 +45,16 @@ public class MediaController {
     private final SubtitleService subtitleService;
     private final TranscodeService transcodeService;
     private final ChapterService chapterService;
+    private final PosterImageService posterImageService;
 
-    public MediaController(MediaCatalogService mediaCatalogService, LibrarySyncService librarySyncService, ThumbnailService thumbnailService, SubtitleService subtitleService, TranscodeService transcodeService, ChapterService chapterService) {
+    public MediaController(MediaCatalogService mediaCatalogService, LibrarySyncService librarySyncService, ThumbnailService thumbnailService, SubtitleService subtitleService, TranscodeService transcodeService, ChapterService chapterService, PosterImageService posterImageService) {
         this.mediaCatalogService = mediaCatalogService;
         this.librarySyncService = librarySyncService;
         this.thumbnailService = thumbnailService;
         this.subtitleService = subtitleService;
         this.transcodeService = transcodeService;
         this.chapterService = chapterService;
+        this.posterImageService = posterImageService;
     }
 
     @GetMapping("/api/media")
@@ -269,6 +272,17 @@ public class MediaController {
             return ResponseEntity.notFound().build();
         }
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping("/api/series/{seriesName}/poster-image")
+    public ResponseEntity<Resource> posterImage(@PathVariable String seriesName) {
+        Path path = posterImageService.localFile(seriesName);
+        if (!Files.exists(path)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Resource resource = new FileSystemResource(path);
+        return ResponseEntity.ok().contentType(MediaType.IMAGE_JPEG).body(resource);
     }
 
     @DeleteMapping("/api/series/{seriesName}")

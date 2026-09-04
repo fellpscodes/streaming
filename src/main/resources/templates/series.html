@@ -6,19 +6,28 @@
 </head>
 <body>
 <h1 th:text="${seriesName}">Série</h1>
-<ul>
-    <li th:each="episode : ${episodes}">
-        <a th:if="${episode.available}" th:href="'/watch/' + ${episode.id}">
-            <span th:text="${episode.displayName}">nome</span>
-            <span class="size" th:text="${episode.isWatched()} ? 'assistido' : 'restante'">status</span>
-        </a>
-        <span class="unavailable" th:unless="${episode.available}">
-            <span th:text="${episode.displayName}">nome</span>
-            <span class="size">indisponível</span>
-        </span>
-    </li>
-</ul>
 
-<a href="/">Voltar</a>
+<div class="card-grid continue-grid">
+    <a th:each="episode : ${episodes}" th:if="${episode.available}" th:href="'/watch/' + ${episode.id}" class="card continue-card">
+        <div class="card-poster continue-poster">
+            <img th:src="'/api/media/' + ${episode.id} + '/thumbnail'" alt="">
+            <span th:if="${episode.isWatched()}" class="rewatch-overlay">
+                <svg viewBox="0 0 24 24" width="28" height="28"><path fill="currentColor" d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
+            </span>
+            <span th:if="${episode.isWatched()}" class="watched-badge">Assistido</span>
+        </div>
+        <span class="card-title" th:text="${episode.displayName}">nome</span>
+    </a>
+
+    <div th:each="episode : ${episodes}" th:unless="${episode.available}" class="card card-unavailable">
+        <div class="card-poster continue-poster">
+            <img th:src="'/api/media/' + ${episode.id} + '/thumbnail'" alt="">
+        </div>
+        <span class="card-title" th:text="${episode.displayName}">nome</span>
+        <span class="card-subtitle">indisponível</span>
+    </div>
+</div>
+
+<a href="/" class="back-link">Voltar</a>
 </body>
 </html>
