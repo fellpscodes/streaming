@@ -19,10 +19,11 @@ import java.util.regex.Pattern;
 public class PosterService {
     private static final Logger log = LoggerFactory.getLogger(PosterService.class);
 
-    private final RestClient restClient = RestClient.create();
+    private final RestClient restClient;
     private final String tmdbApiKey;
 
-    public PosterService(@Value("${tmdb.api-key:}") String tmdbApiKey) {
+    public PosterService(RestClient restClient, @Value("${tmdb.api-key:}") String tmdbApiKey) {
+        this.restClient = restClient;
         this.tmdbApiKey = tmdbApiKey;
     }
 

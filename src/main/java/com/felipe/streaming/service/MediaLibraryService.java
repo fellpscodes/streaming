@@ -67,7 +67,7 @@ public class MediaLibraryService {
         return result;
     }
 
-    public List<MediaFile> listAll() {
+    public synchronized List<MediaFile> listAll() {
         if (cache != null && Instant.now().isBefore(cachedAt.plus(CACHE_TTL))) {
             return cache;
         }

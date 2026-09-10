@@ -16,10 +16,11 @@ import java.util.UUID;
 public class PosterImageService {
     private static final Logger log = LoggerFactory.getLogger(PosterImageService.class);
 
-    private final RestClient restClient = RestClient.create();
+    private final RestClient restClient;
     private final Path storagePath;
 
-    public PosterImageService(@Value("${poster.storage-path}") String storagePath) {
+    public PosterImageService(RestClient restClient, @Value("${poster.storage-path}") String storagePath) {
+        this.restClient = restClient;
         this.storagePath = Path.of(storagePath);
     }
 
