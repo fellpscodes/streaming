@@ -27,22 +27,34 @@ public class MediaCatalogService {
         return mediaItemRepository.findById(id);
     }
 
-    public void updateProgress(String id, double positionSeconds, double durationSeconds) {
-        MediaItem item = mediaItemRepository.findById(id).orElseThrow();
-        item.updateProgress(positionSeconds, durationSeconds);
-        mediaItemRepository.save(item);
+    public boolean updateProgress(String id, double positionSeconds, double durationSeconds) {
+        Optional<MediaItem> item = mediaItemRepository.findById(id);
+        if (item.isEmpty()) {
+            return false;
+        }
+        item.get().updateProgress(positionSeconds, durationSeconds);
+        mediaItemRepository.save(item.get());
+        return true;
     }
 
-    public void clearProgress(String id) {
-        MediaItem item = mediaItemRepository.findById(id).orElseThrow();
-        item.clearProgress();
-        mediaItemRepository.save(item);
+    public boolean clearProgress(String id) {
+        Optional<MediaItem> item = mediaItemRepository.findById(id);
+        if (item.isEmpty()) {
+            return false;
+        }
+        item.get().clearProgress();
+        mediaItemRepository.save(item.get());
+        return true;
     }
 
-    public void updateTitle(String id, String displayName) {
-        MediaItem item = mediaItemRepository.findById(id).orElseThrow();
-        item.setDisplayName(displayName);
-        mediaItemRepository.save(item);
+    public boolean updateTitle(String id, String displayName) {
+        Optional<MediaItem> item = mediaItemRepository.findById(id);
+        if (item.isEmpty()) {
+            return false;
+        }
+        item.get().setDisplayName(displayName);
+        mediaItemRepository.save(item.get());
+        return true;
     }
 
     public List<MediaItem> listContinueWatching() {

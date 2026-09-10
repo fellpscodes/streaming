@@ -31,11 +31,13 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Function;
 
 @RestController
 public class MediaController {
@@ -68,25 +70,19 @@ public class MediaController {
 
     @GetMapping("/api/media/{id}")
     public ResponseEntity<MediaFileResponse> getById(@PathVariable String id) {
-        Optional<MediaItem> mediaItem = mediaCatalogService.findById(id);
-        if (mediaItem.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-        MediaItem item = mediaItem.get();
-
-        MediaFileResponse mediaFileResponse = new MediaFileResponse(item.getId(), item.getDisplayName(), item.getSizeBytes());
-
-        return ResponseEntity.ok(mediaFileResponse);
+        return withMedia(id, item ->
+                ResponseEntity.ok(new MediaFileResponse(item.getId(), item.getDisplayName(), item.getSizeBytes())));
     }
 
     @GetMapping("/api/media/{id}/skip-segments")
     public ResponseEntity<List<SkipSegmentResponse>> skipSegments(@PathVariable String id) {
-        Optional<MediaItem> mediaItem = mediaCatalogService.findById(id);
-        if (mediaItem.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
+        return withMedia(id, item -> ResponseEntity.ok(chapterService.listSegments(playablePath(item))));
+    }
 
-        return ResponseEntity.ok(chapterService.listSegments(playablePath(mediaItem.get())));
+    private <T> ResponseEntity<T> withMedia(String id, Function<MediaItem, ResponseEntity<T>> handler) {
+        return mediaCatalogService.findById(id)
+                .map(handler)
+                .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     private Path playablePath(MediaItem item) {
@@ -96,128 +92,106 @@ public class MediaController {
     private static final long STREAM_CHUNK_SIZE = 2 * 1024 * 1024;
 
     @GetMapping("/api/media/{id}/stream")
-    public ResponseEntity<ResourceRegion> stream(@PathVariable String id, @RequestHeader HttpHeaders headers) throws IOException {
-        Optional<MediaItem> mediaItem = mediaCatalogService.findById(id);
-        if (mediaItem.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
+    public ResponseEntity<ResourceRegion> stream(@PathVariable String id, @RequestHeader HttpHeaders headers) {
+        return withMedia(id, item -> {
+            Path playablePath = playablePath(item);
+            Resource resource = new FileSystemResource(playablePath);
+            MediaType mediaType = MediaTypeFactory.getMediaType(resource).orElse(MediaType.APPLICATION_OCTET_STREAM);
+            long contentLength;
+            try {
+                contentLength = resource.contentLength();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
 
-        MediaItem item = mediaItem.get();
+            List<HttpRange> ranges = headers.getRange();
+            ResourceRegion region;
+            if (ranges.isEmpty()) {
+                long rangeLength = Math.min(STREAM_CHUNK_SIZE, contentLength);
+                region = new ResourceRegion(resource, 0, rangeLength);
+            } else {
+                HttpRange range = ranges.get(0);
+                long start = range.getRangeStart(contentLength);
+                long end = range.getRangeEnd(contentLength);
+                long rangeLength = Math.min(STREAM_CHUNK_SIZE, end - start + 1);
+                region = new ResourceRegion(resource, start, rangeLength);
+            }
 
-        Path playablePath = playablePath(item);
-        Resource resource = new FileSystemResource(playablePath);
-        MediaType mediaType = MediaTypeFactory.getMediaType(resource).orElse(MediaType.APPLICATION_OCTET_STREAM);
-        long contentLength = resource.contentLength();
-
-        List<HttpRange> ranges = headers.getRange();
-        ResourceRegion region;
-        if (ranges.isEmpty()) {
-            long rangeLength = Math.min(STREAM_CHUNK_SIZE, contentLength);
-            region = new ResourceRegion(resource, 0, rangeLength);
-        } else {
-            HttpRange range = ranges.get(0);
-            long start = range.getRangeStart(contentLength);
-            long end = range.getRangeEnd(contentLength);
-            long rangeLength = Math.min(STREAM_CHUNK_SIZE, end - start + 1);
-            region = new ResourceRegion(resource, start, rangeLength);
-        }
-
-        return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
-                .contentType(mediaType)
-                .header(HttpHeaders.ACCEPT_RANGES, "bytes")
-                .body(region);
+            return ResponseEntity.status(HttpStatus.PARTIAL_CONTENT)
+                    .contentType(mediaType)
+                    .header(HttpHeaders.ACCEPT_RANGES, "bytes")
+                    .body(region);
+        });
     }
 
     @GetMapping("/api/media/{id}/subtitles")
     public ResponseEntity<Resource> subtitles(@PathVariable String id) {
-        Optional<MediaItem> mediaItem = mediaCatalogService.findById(id);
-        if (mediaItem.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
+        return withMedia(id, item -> {
+            Path subtitlePath = siblingFile(item, ".vtt");
+            if (!Files.exists(subtitlePath)) {
+                return ResponseEntity.notFound().build();
+            }
 
-        Path subtitlePath = siblingFile(mediaItem.get(), ".vtt");
-
-        if (!Files.exists(subtitlePath)) {
-            return ResponseEntity.notFound().build();
-        }
-
-        Resource resource = new FileSystemResource(subtitlePath);
-
-        return ResponseEntity.ok().contentType(MediaType.valueOf("text/vtt")).body(resource);
+            Resource resource = new FileSystemResource(subtitlePath);
+            return ResponseEntity.ok().contentType(MediaType.valueOf("text/vtt")).body(resource);
+        });
     }
 
     @GetMapping("/api/media/{id}/subtitle-tracks")
     public ResponseEntity<List<SubtitleTrackResponse>> subtitleTracks(@PathVariable String id) {
-        Optional<MediaItem> mediaItem = mediaCatalogService.findById(id);
-        if (mediaItem.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-
-        return ResponseEntity.ok(subtitleService.listTracks(mediaItem.get()));
+        return withMedia(id, item -> ResponseEntity.ok(subtitleService.listTracks(item)));
     }
 
     @GetMapping("/api/media/{id}/subtitle-tracks/{index}")
     public ResponseEntity<Resource> subtitleTrackFile(@PathVariable String id, @PathVariable int index) {
-        if (mediaCatalogService.findById(id).isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
+        return withMedia(id, item -> {
+            Path trackPath = subtitleService.trackFile(id, index);
+            if (!Files.exists(trackPath)) {
+                return ResponseEntity.notFound().build();
+            }
 
-        Path trackPath = subtitleService.trackFile(id, index);
-        if (!Files.exists(trackPath)) {
-            return ResponseEntity.notFound().build();
-        }
-
-        Resource resource = new FileSystemResource(trackPath);
-        return ResponseEntity.ok().contentType(MediaType.TEXT_PLAIN).body(resource);
+            Resource resource = new FileSystemResource(trackPath);
+            return ResponseEntity.ok().contentType(MediaType.TEXT_PLAIN).body(resource);
+        });
     }
 
     @GetMapping("/api/media/{id}/subtitle-fonts")
     public ResponseEntity<List<String>> subtitleFonts(@PathVariable String id) {
-        if (mediaCatalogService.findById(id).isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
-
-        return ResponseEntity.ok(subtitleService.fontFileNames(id));
+        return withMedia(id, item -> ResponseEntity.ok(subtitleService.fontFileNames(id)));
     }
 
     @GetMapping("/api/media/{id}/subtitle-fonts/{filename}")
     public ResponseEntity<Resource> subtitleFontFile(@PathVariable String id, @PathVariable String filename) {
-        if (mediaCatalogService.findById(id).isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
+        return withMedia(id, item -> {
+            if (!filename.equals(Path.of(filename).getFileName().toString())) {
+                return ResponseEntity.badRequest().build();
+            }
 
-        if (!filename.equals(Path.of(filename).getFileName().toString())) {
-            return ResponseEntity.badRequest().build();
-        }
+            Path fontPath = subtitleService.fontFile(id, filename);
+            if (!Files.exists(fontPath)) {
+                return ResponseEntity.notFound().build();
+            }
 
-        Path fontPath = subtitleService.fontFile(id, filename);
-        if (!Files.exists(fontPath)) {
-            return ResponseEntity.notFound().build();
-        }
-
-        Resource resource = new FileSystemResource(fontPath);
-        return ResponseEntity.ok().contentType(MediaType.APPLICATION_OCTET_STREAM).body(resource);
+            Resource resource = new FileSystemResource(fontPath);
+            return ResponseEntity.ok().contentType(MediaType.APPLICATION_OCTET_STREAM).body(resource);
+        });
     }
 
     @GetMapping("/api/media/{id}/thumbnail")
     public ResponseEntity<Resource> thumbnail(@PathVariable String id) {
-        Optional<MediaItem> mediaItem = mediaCatalogService.findById(id);
-        if (mediaItem.isEmpty()) {
-            return ResponseEntity.notFound().build();
-        }
+        return withMedia(id, item -> {
+            Path thumbnailPath = thumbnailService.thumbnailPath(id);
+            if (!Files.exists(thumbnailPath)) {
+                thumbnailPath = siblingFile(item, ".jpg");
+            }
 
-        Path thumbnailPath = thumbnailService.thumbnailPath(id);
-        if (!Files.exists(thumbnailPath)) {
-            thumbnailPath = siblingFile(mediaItem.get(), ".jpg");
-        }
+            if (!Files.exists(thumbnailPath)) {
+                return ResponseEntity.notFound().build();
+            }
 
-        if (!Files.exists(thumbnailPath)) {
-            return ResponseEntity.notFound().build();
-        }
-
-        Resource resource = new FileSystemResource(thumbnailPath);
-
-        return ResponseEntity.ok().contentType(MediaType.IMAGE_JPEG).body(resource);
+            Resource resource = new FileSystemResource(thumbnailPath);
+            return ResponseEntity.ok().contentType(MediaType.IMAGE_JPEG).body(resource);
+        });
     }
 
     private Path siblingFile(MediaItem item, String extension) {
