@@ -160,7 +160,7 @@ describe("legendas", () => {
 describe("planejamento", () => {
   it("decide copiar, recodificar ou tocar direto", async () => {
     const { makePlan } = await import("@/lib/media/plan");
-    const base = { duration: 1, audio: [{ index: 1, codec: "aac", channels: 2, lang: null, title: null, isDefault: true }], subs: [], attachments: [] };
+    const base = { duration: 1, chapters: [], audio: [{ index: 1, codec: "aac", channels: 2, lang: null, title: null, isDefault: true }], subs: [], attachments: [] };
     const v = (codec: string, pixFmt: string) => ({ ...base, video: { index: 0, codec, pixFmt, width: 1920, height: 1080 } });
     expect(makePlan("a.mkv", v("h264", "yuv420p")).video).toBe("copy");
     expect(makePlan("a.mkv", v("hevc", "yuv420p10le")).video).toBe("copy"); // HEVC: copia; recodifica só se falhar no navegador

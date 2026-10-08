@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 interface SubTrack {
@@ -21,15 +22,32 @@ interface Props {
   title: string;
   subtitle: string;
   backHref: string;
+  prevHref: string | null;
   nextHref: string | null;
   startAt: number;
 }
 
-type JassubInstance = { destroy: () => Promise<void> | void };
+interface Segment {
+  start: number;
+  end: number;
+  source: "chapters" | "manual";
+}
+interface SkipData {
+  intro: Segment | null;
+  outro: Segment | null;
+  marks: { introStart?: number; introEnd?: number; outroStart?: number };
+}
+
+type JassubInstance = { destroy: () => Promise<void> | void; resize?: (forceRepaint?: boolean) => Promise<void> };
+
+/** Sem capítulos nem marcas, o encerramento é considerado como os últimos 90 s (só em vídeos longos). */
+const FALLBACK_OUTRO_SECONDS = 90;
+const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 
 const post = (url: string, body: unknown) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
-export function Player({ episodeId, title, subtitle, backHref, nextHref, startAt }: Props) {
+export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHref, startAt }: Props) {
+  const router = useRouter();
   const wrapRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const jassubRef = useRef<JassubInstance | null>(null);
@@ -46,6 +64,11 @@ export function Player({ episodeId, title, subtitle, backHref, nextHref, startAt
   const [subId, setSubId] = useState<string>("");
   const [uiVisible, setUiVisible] = useState(true);
   const [ended, setEnded] = useState(false);
+  const [skip, setSkip] = useState<SkipData | null>(null);
+  const [now, setNow] = useState(0); // posição atual (s), para decidir quando mostrar "Pular abertura"
+  const [dur, setDur] = useState(0);
+  const [markOpen, setMarkOpen] = useState(false);
+  const completedRef = useRef(false); // ao pular para o próximo, não deixa um save tardio desmarcar "concluído"
   const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   /** Volta ao estado "preparando" ao trocar de áudio ou de modo. */
@@ -87,17 +110,27 @@ export function Player({ episodeId, title, subtitle, backHref, nextHref, startAt
     };
   }, [episodeId, audioIndex, mode]);
 
-  // 2) Lista de legendas (uma vez); escolhe a padrão ou a primeira em português.
+  // 2) Lista de legendas (uma vez por episódio). O servidor já diz qual faixa vem selecionada:
+  //    a que você escolheu antes neste título (ou "sem legenda"), senão a padrão do arquivo.
   useEffect(() => {
     fetch(`/api/subtitles/${episodeId}`)
       .then((r) => r.json())
-      .then((d: { tracks: SubTrack[]; fonts: string[] }) => {
+      .then((d: { tracks: SubTrack[]; fonts: string[]; selectedId: string }) => {
         setSubs(d);
-        const pick = d.tracks.find((t) => t.isDefault) ?? d.tracks.find((t) => /portugu/i.test(t.label));
-        setSubId(pick?.id ?? "");
+        setSubId(d.selectedId);
       })
       .catch(() => setSubs({ tracks: [], fonts: [] }));
   }, [episodeId]);
+
+  /** Troca a legenda e lembra a escolha para os próximos episódios deste título. */
+  function chooseSubtitle(id: string) {
+    setSubId(id);
+    void fetch(`/api/subtitle-preference/${episodeId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ trackId: id }),
+    });
+  }
 
   // 3) Renderiza a legenda: ASS/SSA com libass (JASSUB) para manter estilo, posição e efeitos; VTT com <track> nativo.
   useEffect(() => {
@@ -131,11 +164,45 @@ export function Player({ episodeId, title, subtitle, backHref, nextHref, startAt
 
   useEffect(() => () => void jassubRef.current?.destroy(), []);
 
+  // Abertura e encerramento deste episódio (capítulos do arquivo ou marcas manuais do título).
+  useEffect(() => {
+    fetch(`/api/skip/${episodeId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then(setSkip)
+      .catch(() => setSkip(null));
+  }, [episodeId]);
+
+  async function saveMarks(patch: Record<string, number | null>) {
+    const res = await fetch(`/api/skip/${episodeId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(patch) });
+    if (res.ok) setSkip(await res.json());
+  }
+  async function clearMarks() {
+    const res = await fetch(`/api/skip/${episodeId}`, { method: "DELETE" });
+    if (res.ok) setSkip(await res.json());
+  }
+
+  /** Vai para o próximo episódio marcando este como concluído (o "Continuar assistindo" passa a oferecer o seguinte). */
+  function goNext() {
+    const v = videoRef.current;
+    if (v && v.duration && Number.isFinite(v.duration)) {
+      completedRef.current = true;
+      void fetch("/api/progress", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ episodeId, position: v.duration, duration: v.duration }),
+        keepalive: true,
+      });
+    }
+  }
+  function skipIntro() {
+    if (videoRef.current && skip?.intro) videoRef.current.currentTime = skip.intro.end;
+  }
+
   // 4) Progresso: a cada 10 s tocando, ao pausar, ao sair da aba.
   const save = useCallback(
     (beacon = false) => {
       const v = videoRef.current;
-      if (!v || !v.duration || !Number.isFinite(v.duration)) return;
+      if (completedRef.current || !v || !v.duration || !Number.isFinite(v.duration)) return;
       const body = JSON.stringify({ episodeId, position: v.currentTime, duration: v.duration });
       if (beacon) navigator.sendBeacon("/api/progress", new Blob([body], { type: "application/json" }));
       else void fetch("/api/progress", { method: "PUT", headers: { "Content-Type": "application/json" }, body, keepalive: true });
@@ -156,6 +223,7 @@ export function Player({ episodeId, title, subtitle, backHref, nextHref, startAt
 
   function onLoadedMetadata() {
     const v = videoRef.current!;
+    setDur(v.duration);
     // HEVC sem suporte costuma tocar só o áudio (largura 0): refaz em H.264 de alta qualidade.
     if (v.videoWidth === 0 && mode === "auto") {
       resumeAt.current = v.currentTime || resumeAt.current;
@@ -187,6 +255,24 @@ export function Player({ episodeId, title, subtitle, backHref, nextHref, startAt
     else void wrapRef.current?.requestFullscreen();
   }, []);
 
+  // A legenda ASS é um canvas ao lado do <video>: só aparece em tela cheia se o CONTÊINER for o elemento em tela cheia.
+  // Duplo clique e menu do Chrome colocam só o <video> em tela cheia (e a legenda some); aqui isso é redirecionado.
+  useEffect(() => {
+    function onChange() {
+      const wrap = wrapRef.current;
+      if (document.fullscreenElement && document.fullscreenElement === videoRef.current && wrap) {
+        // Troca direto para o contêiner, sem sair antes (sair gasta o gesto do usuário e o pedido seguinte falharia).
+        // Se o navegador recusar, fica a tela cheia nativa em vez de expulsar o usuário dela.
+        wrap.requestFullscreen().catch(() => {});
+        return;
+      }
+      // O tamanho mudou: o canvas das legendas precisa se ajustar ao novo quadro.
+      for (const ms of [50, 300, 800]) setTimeout(() => void jassubRef.current?.resize?.(true), ms);
+    }
+    document.addEventListener("fullscreenchange", onChange);
+    return () => document.removeEventListener("fullscreenchange", onChange);
+  }, []);
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const v = videoRef.current;
@@ -199,16 +285,28 @@ export function Player({ episodeId, title, subtitle, backHref, nextHref, startAt
       else if (e.key === "ArrowLeft") v.currentTime -= 10;
       else if (e.key === "f") toggleFullscreen();
       else if (e.key === "m") v.muted = !v.muted;
+      else if (e.key === "n" && nextHref) {
+        goNext();
+        router.push(nextHref);
+      }
+      else if (e.key === "p" && prevHref) router.push(prevHref);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [toggleFullscreen]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- goNext só usa refs e o episódio atual
+  }, [toggleFullscreen, nextHref, prevHref, router]);
 
   function poke() {
     setUiVisible(true);
     clearTimeout(hideTimer.current);
     hideTimer.current = setTimeout(() => !videoRef.current?.paused && setUiVisible(false), 3000);
   }
+
+  // Quando mostrar os botões de pulo.
+  const introWindow = skip?.intro ? now >= skip.intro.start - 2 && now < skip.intro.end - 1 : false;
+  const outroStart = skip?.outro?.start ?? (dur > 300 ? dur - FALLBACK_OUTRO_SECONDS : null);
+  const showIntroButton = phase === "ready" && !ended && introWindow;
+  const showNextButton = phase === "ready" && Boolean(nextHref) && (ended || (outroStart != null && now >= outroStart));
 
   const sel = "rounded bg-black/70 px-2 py-1 text-sm text-white outline-none focus:ring-2 focus:ring-accent";
 
@@ -217,7 +315,15 @@ export function Player({ episodeId, title, subtitle, backHref, nextHref, startAt
       ref={wrapRef}
       onMouseMove={poke}
       onTouchStart={poke}
-      className={`relative flex aspect-video max-h-[calc(100vh-3.5rem)] w-full items-center justify-center bg-black ${uiVisible ? "" : "cursor-none"}`}
+      // Duplo clique no vídeo = tela cheia do CONTÊINER (com a legenda), não a nativa do <video>.
+      onDoubleClickCapture={(e) => {
+        if (e.target === videoRef.current) {
+          e.stopPropagation();
+          e.preventDefault();
+          toggleFullscreen();
+        }
+      }}
+      className={`relative flex aspect-video max-h-[calc(100vh-3.5rem)] w-full items-center justify-center bg-black [&:fullscreen]:aspect-auto [&:fullscreen]:max-h-none ${uiVisible ? "" : "cursor-none"}`}
     >
       <h1 className="sr-only">{title} — {subtitle}</h1>
       {streamUrl && (
@@ -230,6 +336,8 @@ export function Player({ episodeId, title, subtitle, backHref, nextHref, startAt
           playsInline
           preload="auto"
           onLoadedMetadata={onLoadedMetadata}
+          onTimeUpdate={(e) => setNow(e.currentTarget.currentTime)}
+          onDurationChange={(e) => setDur(e.currentTarget.duration)}
           onError={onVideoError}
           onPause={() => (save(), setUiVisible(true))}
           onPlay={() => (setEnded(false), poke())}
@@ -272,17 +380,70 @@ export function Player({ episodeId, title, subtitle, backHref, nextHref, startAt
             </select>
           )}
           {subs && subs.tracks.length > 0 && (
-            <select aria-label="Legenda" value={subId} onChange={(e) => setSubId(e.target.value)} className={sel}>
+            <select aria-label="Legenda" value={subId} onChange={(e) => chooseSubtitle(e.target.value)} className={sel}>
               <option value="">💬 Sem legenda</option>
               {subs.tracks.map((t) => <option key={t.id} value={t.id}>💬 {t.label}</option>)}
             </select>
           )}
-          <button onClick={toggleFullscreen} className={sel} aria-label="Tela cheia">⛶</button>
+          {prevHref && (
+            <Link href={prevHref} className={sel} aria-label="Episódio anterior" title="Episódio anterior (p)">⏮</Link>
+          )}
+          {nextHref && (
+            <Link href={nextHref} onClick={goNext} className={sel} aria-label="Pular para o próximo episódio" title="Próximo episódio (n)">⏭</Link>
+          )}
+          <button onClick={() => setMarkOpen((o) => !o)} className={sel} aria-label="Marcar abertura e encerramento" aria-expanded={markOpen} title="Abertura e encerramento">⏱</button>
+          <button onClick={toggleFullscreen} className={sel} aria-label="Tela cheia" title="Tela cheia (f)">⛶</button>
         </div>
       </div>
 
-      {ended && nextHref && (
-        <Link href={nextHref} className="absolute bottom-20 right-4 rounded bg-accent px-5 py-3 font-medium text-white shadow-lg">
+      {markOpen && skip && (
+        <div role="dialog" aria-label="Abertura e encerramento" className="absolute right-3 top-14 z-20 w-72 max-w-[calc(100%-1.5rem)] space-y-3 rounded-lg border border-border bg-surface/95 p-3 text-sm shadow-xl">
+          <div>
+            <p className="font-medium">Abertura</p>
+            {skip.intro ? (
+              <p className="text-xs text-neutral-400">
+                {fmt(skip.intro.start)}–{fmt(skip.intro.end)} · {skip.intro.source === "chapters" ? "detectada pelos capítulos do arquivo" : "marcada por você (vale para a série)"}
+              </p>
+            ) : (
+              <p className="text-xs text-neutral-400">
+                Não detectada.{skip.marks.introStart != null ? ` Início em ${fmt(skip.marks.introStart)}; falta marcar o fim.` : " Pause no começo e no fim dela e marque."}
+              </p>
+            )}
+            {skip.intro?.source !== "chapters" && (
+              <div className="mt-2 flex gap-2">
+                <button onClick={() => saveMarks({ introStart: now })} className="flex-1 rounded border border-border px-2 py-1.5 hover:border-accent">Início aqui</button>
+                <button onClick={() => saveMarks({ introEnd: now })} className="flex-1 rounded border border-border px-2 py-1.5 hover:border-accent">Fim aqui</button>
+              </div>
+            )}
+          </div>
+          <div>
+            <p className="font-medium">Encerramento</p>
+            {skip.outro ? (
+              <p className="text-xs text-neutral-400">
+                a partir de {fmt(skip.outro.start)} · {skip.outro.source === "chapters" ? "detectado pelos capítulos do arquivo" : "marcado por você (vale para a série)"}
+              </p>
+            ) : (
+              <p className="text-xs text-neutral-400">
+                Não detectado.{dur > 300 ? ` O botão de próximo episódio aparece nos últimos ${FALLBACK_OUTRO_SECONDS} s.` : " Marque onde ele começa."}
+              </p>
+            )}
+            {skip.outro?.source !== "chapters" && (
+              <button onClick={() => saveMarks({ outroStart: now })} className="mt-2 w-full rounded border border-border px-2 py-1.5 hover:border-accent">Início do encerramento aqui</button>
+            )}
+          </div>
+          {(skip.marks.introStart != null || skip.marks.introEnd != null || skip.marks.outroStart != null) && (
+            <button onClick={clearMarks} className="text-xs text-neutral-400 underline hover:text-white">Limpar marcas</button>
+          )}
+        </div>
+      )}
+
+      {showIntroButton && (
+        <button onClick={skipIntro} className="absolute bottom-20 right-4 z-10 rounded border border-white/40 bg-black/70 px-5 py-3 font-medium text-white shadow-lg backdrop-blur hover:bg-black/90">
+          Pular abertura ⏭
+        </button>
+      )}
+      {showNextButton && nextHref && (
+        <Link href={nextHref} onClick={goNext} className="absolute bottom-20 right-4 z-10 rounded bg-accent px-5 py-3 font-medium text-white shadow-lg">
           Próximo episódio ▶
         </Link>
       )}

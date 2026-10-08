@@ -25,8 +25,14 @@ export interface Attachment {
   filename: string;
   mimetype: string | null;
 }
+export interface Chapter {
+  start: number;
+  end: number;
+  title: string;
+}
 export interface ProbeResult {
   duration: number;
+  chapters: Chapter[];
   video: { index: number; codec: string; pixFmt: string | null; width: number; height: number } | null;
   audio: AudioStream[];
   subs: SubStream[];
@@ -51,11 +57,22 @@ const tag = (s: RawStream, k: string) => {
   return key ? t[key] : null;
 };
 
-export function parseProbe(json: { streams?: RawStream[]; format?: { duration?: string } }): ProbeResult {
+interface RawChapter {
+  start_time?: string;
+  end_time?: string;
+  tags?: Record<string, string>;
+}
+
+export function parseProbe(json: { streams?: RawStream[]; format?: { duration?: string }; chapters?: RawChapter[] }): ProbeResult {
   const streams = json.streams ?? [];
   const video = streams.find((s) => s.codec_type === "video" && !s.disposition?.attached_pic);
   return {
     duration: Number(json.format?.duration) || 0,
+    chapters: (json.chapters ?? []).map((c) => ({
+      start: Number(c.start_time) || 0,
+      end: Number(c.end_time) || 0,
+      title: c.tags?.title ?? c.tags?.TITLE ?? "",
+    })),
     video: video
       ? { index: video.index, codec: video.codec_name ?? "", pixFmt: video.pix_fmt ?? null, width: video.width ?? 0, height: video.height ?? 0 }
       : null,
@@ -93,7 +110,7 @@ export async function probe(file: string): Promise<ProbeResult> {
   const key = `${file}:${st.mtimeMs}:${st.size}`;
   const hit = cache.get(key);
   if (hit) return hit;
-  const { stdout } = await run("ffprobe", ["-v", "error", "-print_format", "json", "-show_streams", "-show_format", file], {
+  const { stdout } = await run("ffprobe", ["-v", "error", "-print_format", "json", "-show_streams", "-show_format", "-show_chapters", file], {
     maxBuffer: 16 * 1024 * 1024,
   });
   const res = parseProbe(JSON.parse(stdout));
