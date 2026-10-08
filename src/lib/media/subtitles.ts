@@ -14,6 +14,8 @@ export interface SubTrack {
   format: "ass" | "vtt";
   isDefault: boolean;
   origin: "embedded" | "external";
+  /** Idioma por extenso ("Português"), quando dá para saber; usado para casar a legenda entre episódios. */
+  lang: string | null;
 }
 export interface FontFile {
   name: string;
@@ -57,6 +59,7 @@ export async function listSubtitles(video: string): Promise<{ tracks: SubTrack[]
     if (!TEXT_CODECS.has(s.codec)) continue; // PGS/DVD são imagem: não dá para renderizar como texto
     const lang = s.lang ? (LANG[s.lang.toLowerCase()] ?? s.lang) : null;
     tracks.push({
+      lang,
       id: `e${s.index}`,
       label: [lang, s.title].filter(Boolean).join(" · ") || `Faixa ${s.index}`,
       format: s.codec === "webvtt" ? "vtt" : "ass",
@@ -65,9 +68,11 @@ export async function listSubtitles(video: string): Promise<{ tracks: SubTrack[]
     });
   }
   (await externalFiles(video)).forEach((f, i) => {
+    const label = externalLabel(video, f);
     tracks.push({
+      lang: Object.values(LANG).includes(label) ? label : null,
       id: `x${i}`,
-      label: externalLabel(video, f),
+      label,
       format: path.extname(f).toLowerCase() === ".vtt" ? "vtt" : "ass",
       isDefault: false,
       origin: "external",
