@@ -42,14 +42,21 @@ type JassubInstance = { destroy: () => Promise<void> | void; resize?: (forceRepa
 
 /** Sem capítulos nem marcas, o encerramento é considerado como os últimos 90 s (só em vídeos longos). */
 const FALLBACK_OUTRO_SECONDS = 90;
-const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+const fmt = (s: number) => {
+  const t = Math.max(0, Math.floor(s || 0));
+  const h = Math.floor(t / 3600);
+  const mm = Math.floor((t % 3600) / 60);
+  const ss = String(t % 60).padStart(2, "0");
+  return h ? `${h}:${String(mm).padStart(2, "0")}:${ss}` : `${mm}:${ss}`;
+};
 
 const post = (url: string, body: unknown) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHref, startAt }: Props) {
   const router = useRouter();
   const wrapRef = useRef<HTMLDivElement>(null);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const lastVideo = useRef<HTMLVideoElement | null>(null); // o React solta videoRef ao esconder a tela; este guarda o elemento
   const jassubRef = useRef<JassubInstance | null>(null);
   const resumeAt = useRef(startAt);
 
@@ -68,6 +75,10 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
   const [now, setNow] = useState(0); // posição atual (s), para decidir quando mostrar "Pular abertura"
   const [dur, setDur] = useState(0);
   const [markOpen, setMarkOpen] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  const [volume, setVolume] = useState(1);
+  const [muted, setMuted] = useState(false);
+  const clickTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const completedRef = useRef(false); // ao pular para o próximo, não deixa um save tardio desmarcar "concluído"
   const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -198,6 +209,15 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
     if (videoRef.current && skip?.intro) videoRef.current.currentTime = skip.intro.end;
   }
 
+  // O Next mantém as telas anteriores montadas (ocultas) para voltar rápido a elas. Sem isto, o vídeo da tela
+  // que você deixou continua tocando por trás. Esconder a tela desmonta os efeitos, então pausa aqui.
+  useEffect(
+    () => () => {
+      lastVideo.current?.pause();
+    },
+    [],
+  );
+
   // 4) Progresso: a cada 10 s tocando, ao pausar, ao sair da aba.
   const save = useCallback(
     (beacon = false) => {
@@ -249,6 +269,13 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
     restart();
     setAudioIndex(idx);
   }
+
+  const togglePlay = useCallback(() => {
+    const v = videoRef.current;
+    if (!v) return;
+    if (v.paused) void v.play().catch(() => {});
+    else v.pause();
+  }, []);
 
   const toggleFullscreen = useCallback(() => {
     if (document.fullscreenElement) void document.exitFullscreen();
@@ -320,27 +347,36 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
         if (e.target === videoRef.current) {
           e.stopPropagation();
           e.preventDefault();
+          clearTimeout(clickTimer.current); // o primeiro clique do duplo clique não deve pausar
           toggleFullscreen();
         }
+      }}
+      onClick={(e) => {
+        if (e.target !== videoRef.current) return;
+        clearTimeout(clickTimer.current);
+        clickTimer.current = setTimeout(togglePlay, 250);
       }}
       className={`relative flex aspect-video max-h-[calc(100vh-3.5rem)] w-full items-center justify-center bg-black [&:fullscreen]:aspect-auto [&:fullscreen]:max-h-none ${uiVisible ? "" : "cursor-none"}`}
     >
       <h1 className="sr-only">{title} — {subtitle}</h1>
       {streamUrl && (
         <video
-          ref={videoRef}
+          ref={(el) => {
+            videoRef.current = el;
+            if (el) lastVideo.current = el;
+          }}
           key={streamUrl}
           src={streamUrl}
-          controls
-          controlsList="nofullscreen"
           playsInline
+          disablePictureInPicture
           preload="auto"
           onLoadedMetadata={onLoadedMetadata}
           onTimeUpdate={(e) => setNow(e.currentTarget.currentTime)}
           onDurationChange={(e) => setDur(e.currentTarget.duration)}
           onError={onVideoError}
-          onPause={() => (save(), setUiVisible(true))}
-          onPlay={() => (setEnded(false), poke())}
+          onPause={() => (setPlaying(false), save(), setUiVisible(true))}
+          onPlay={() => (setPlaying(true), setEnded(false), poke())}
+          onVolumeChange={(e) => (setVolume(e.currentTarget.volume), setMuted(e.currentTarget.muted))}
           onEnded={() => (save(), setEnded(true))}
           className="size-full"
         />
@@ -392,7 +428,6 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
             <Link href={nextHref} onClick={goNext} className={sel} aria-label="Pular para o próximo episódio" title="Próximo episódio (n)">⏭</Link>
           )}
           <button onClick={() => setMarkOpen((o) => !o)} className={sel} aria-label="Marcar abertura e encerramento" aria-expanded={markOpen} title="Abertura e encerramento">⏱</button>
-          <button onClick={toggleFullscreen} className={sel} aria-label="Tela cheia" title="Tela cheia (f)">⛶</button>
         </div>
       </div>
 
@@ -437,13 +472,71 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
         </div>
       )}
 
+      {/* Controles próprios: iguais em qualquer navegador e sem o botão de tela cheia do <video>,
+          que não leva a legenda junto (o Firefox não permite esconder o nativo). */}
+      {streamUrl && (
+        <div
+          className={`absolute inset-x-0 bottom-0 z-10 flex items-center gap-2 bg-gradient-to-t from-black/85 to-transparent px-3 pb-3 pt-8 text-white transition-opacity sm:gap-3 ${uiVisible || !playing ? "opacity-100" : "pointer-events-none opacity-0"}`}
+        >
+          <button onClick={togglePlay} aria-label={playing ? "Pausar" : "Reproduzir"} title="Reproduzir/pausar (espaço)" className="flex size-9 shrink-0 items-center justify-center rounded text-xl hover:bg-white/15">
+            {playing ? "⏸" : "▶"}
+          </button>
+          <span className="w-12 shrink-0 text-right text-xs tabular-nums sm:w-14 sm:text-sm">{fmt(now)}</span>
+          <input
+            type="range"
+            aria-label="Posição do vídeo"
+            aria-valuetext={`${fmt(now)} de ${fmt(dur)}`}
+            min={0}
+            max={dur || 0}
+            step={0.1}
+            value={Math.min(now, dur || 0)}
+            onChange={(e) => {
+              const v = videoRef.current;
+              if (v) v.currentTime = Number(e.target.value);
+              setNow(Number(e.target.value));
+            }}
+            className="h-1.5 min-w-0 flex-1 cursor-pointer accent-[var(--accent)]"
+          />
+          <span className="w-12 shrink-0 text-xs tabular-nums text-neutral-300 sm:w-14 sm:text-sm">{fmt(dur)}</span>
+          <button
+            onClick={() => {
+              const v = videoRef.current;
+              if (v) v.muted = !v.muted;
+            }}
+            aria-label={muted || volume === 0 ? "Ativar som" : "Silenciar"}
+            title="Silenciar (m)"
+            className="flex size-9 shrink-0 items-center justify-center rounded hover:bg-white/15"
+          >
+            {muted || volume === 0 ? "🔇" : volume < 0.5 ? "🔉" : "🔊"}
+          </button>
+          <input
+            type="range"
+            aria-label="Volume"
+            min={0}
+            max={1}
+            step={0.05}
+            value={muted ? 0 : volume}
+            onChange={(e) => {
+              const v = videoRef.current;
+              if (!v) return;
+              v.volume = Number(e.target.value);
+              v.muted = Number(e.target.value) === 0;
+            }}
+            className="hidden w-20 shrink-0 cursor-pointer accent-[var(--accent)] sm:block"
+          />
+          <button onClick={toggleFullscreen} aria-label="Tela cheia" title="Tela cheia (f)" className="flex size-9 shrink-0 items-center justify-center rounded text-lg hover:bg-white/15">
+            ⛶
+          </button>
+        </div>
+      )}
+
       {showIntroButton && (
-        <button onClick={skipIntro} className="absolute bottom-20 right-4 z-10 rounded border border-white/40 bg-black/70 px-5 py-3 font-medium text-white shadow-lg backdrop-blur hover:bg-black/90">
+        <button onClick={skipIntro} className="absolute bottom-24 right-4 z-10 rounded border border-white/40 bg-black/70 px-5 py-3 font-medium text-white shadow-lg backdrop-blur hover:bg-black/90">
           Pular abertura ⏭
         </button>
       )}
       {showNextButton && nextHref && (
-        <Link href={nextHref} onClick={goNext} className="absolute bottom-20 right-4 z-10 rounded bg-accent px-5 py-3 font-medium text-white shadow-lg">
+        <Link href={nextHref} onClick={goNext} className="absolute bottom-24 right-4 z-10 rounded bg-accent px-5 py-3 font-medium text-white shadow-lg">
           Próximo episódio ▶
         </Link>
       )}
