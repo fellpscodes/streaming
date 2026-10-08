@@ -28,6 +28,25 @@ export function FolderPicker({ onPick, onCancel }: Props) {
   const [kind, setKind] = useState<FolderKind>("auto");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [native, setNative] = useState(false);
+
+  /** Abre o explorador de arquivos do sistema e leva o seletor até a pasta escolhida. */
+  async function openExplorer() {
+    setError(null);
+    setNative(true);
+    try {
+      const res = await fetch("/api/fs/pick", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path: listing?.path }),
+      });
+      const data = await res.json();
+      if (!res.ok) return setError(data.error ?? "Não foi possível abrir o explorador.");
+      if (data.path) await go(data.path);
+    } finally {
+      setNative(false);
+    }
+  }
 
   async function go(p?: string) {
     setError(null);
@@ -61,6 +80,15 @@ export function FolderPicker({ onPick, onCancel }: Props) {
 
   return (
     <div className="space-y-3 rounded border border-border bg-surface p-4" role="group" aria-label="Escolher pasta-mãe">
+      <button
+        type="button"
+        onClick={openExplorer}
+        disabled={native}
+        className="flex w-full items-center justify-center gap-2 rounded border border-accent px-4 py-2.5 text-sm font-medium text-accent-fg hover:bg-accent/10 disabled:opacity-60"
+      >
+        {native ? "Aguardando a janela do explorador…" : "📂 Abrir o explorador de arquivos"}
+      </button>
+      <p className="-mt-1 text-xs text-neutral-400">Ou navegue abaixo / digite o caminho.</p>
       <form
         onSubmit={(e) => {
           e.preventDefault();
