@@ -7,7 +7,8 @@
     "build": "next build --webpack",
     "start": "next start -H 127.0.0.1",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "service": "bash scripts/service.sh"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
