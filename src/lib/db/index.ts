@@ -7,13 +7,30 @@ import * as schema from "./schema";
 
 const DB_PATH = process.env.DATABASE_PATH ?? path.join(process.cwd(), "data", "streaming.db");
 
+/**
+ * O `next build` carrega as rotas em vários processos ao mesmo tempo; num banco novo todos tentam
+ * criar as tabelas juntos. Quem perde a corrida tenta de novo e encontra a migração já aplicada.
+ */
+function runMigrations(db: ReturnType<typeof drizzle<typeof schema>>) {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
+      return;
+    } catch (e) {
+      if (attempt >= 8 || !/already exists|locked|busy/i.test(String((e as { cause?: unknown }).cause ?? e))) throw e;
+      Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 150 * attempt);
+    }
+  }
+}
+
 function createDb() {
   fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
   const sqlite = new Database(DB_PATH);
   sqlite.pragma("journal_mode = WAL");
   sqlite.pragma("foreign_keys = ON");
+  sqlite.pragma("busy_timeout = 5000"); // espera outro processo soltar o banco em vez de falhar
   const db = drizzle(sqlite, { schema });
-  migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
+  runMigrations(db);
   return db;
 }
 

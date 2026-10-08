@@ -219,6 +219,7 @@ export function Player({ episodeId, title, subtitle, backHref, nextHref, startAt
       onTouchStart={poke}
       className={`relative flex aspect-video max-h-[calc(100vh-3.5rem)] w-full items-center justify-center bg-black ${uiVisible ? "" : "cursor-none"}`}
     >
+      <h1 className="sr-only">{title} — {subtitle}</h1>
       {streamUrl && (
         <video
           ref={videoRef}

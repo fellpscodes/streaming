@@ -8,7 +8,7 @@ export function ContinueRow({ items }: { items: ContinueEntry[] }) {
   return (
     <section aria-labelledby="continuar">
       <h2 id="continuar" className="mb-3 text-lg font-semibold">Continuar assistindo</h2>
-      <ul className="flex gap-4 overflow-x-auto pb-3">
+      <ul aria-labelledby="continuar" className="flex gap-4 overflow-x-auto pb-3">
         {items.map((c) => {
           const pct = c.durationSec ? Math.min(100, (c.positionSec / c.durationSec) * 100) : 0;
           const img = sized(c.backdropUrl, "w780");

@@ -5,7 +5,8 @@
   --foreground: #ededf0;
   --surface: #16161d;
   --border: #2a2a35;
-  --accent: #e5484d;
+  --accent: #d6303a; /* fundos: texto branco passa em 4,5:1 */
+  --accent-fg: #ff6b70; /* texto vermelho sobre fundo escuro */
   color-scheme: dark;
 }
 
@@ -15,6 +16,7 @@
   --color-surface: var(--surface);
   --color-border: var(--border);
   --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
@@ -23,4 +25,21 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+/* Acessibilidade: foco sempre visível no teclado e respeito a "reduzir movimento". */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

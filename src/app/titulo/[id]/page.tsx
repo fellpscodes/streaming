@@ -41,7 +41,7 @@ async function Titulo({ params }: { params: PageProps<"/titulo/[id]">["params"] 
         <div className="relative mx-auto flex max-w-6xl flex-col gap-6 px-4 pb-8 pt-10 sm:flex-row sm:px-8 sm:pt-16">
           <Poster src={t.posterUrl} title={t.name} variant="hero" className="w-44 shrink-0 self-center rounded-md shadow-2xl sm:w-64 sm:self-start" />
           <div className="space-y-4">
-            <p className="text-sm uppercase tracking-wide text-accent">{CATEGORY_LABEL[t.category]}</p>
+            <p className="text-sm uppercase tracking-wide text-accent-fg">{CATEGORY_LABEL[t.category]}</p>
             <h1 className="text-3xl font-bold sm:text-4xl">{t.name}</h1>
             <p className="flex flex-wrap gap-x-4 text-sm text-neutral-300">
               {t.year && <span>{t.year}</span>}
@@ -82,7 +82,7 @@ async function Titulo({ params }: { params: PageProps<"/titulo/[id]">["params"] 
         {t.cast && t.cast.length > 0 && (
           <section>
             <h2 className="mb-3 text-lg font-semibold">Elenco</h2>
-            <ul className="flex gap-4 overflow-x-auto pb-2">
+            <ul tabIndex={0} aria-label="Elenco" className="flex gap-4 overflow-x-auto pb-2">
               {t.cast.map((c) => (
                 <li key={`${c.name}-${c.role}`} className="w-24 shrink-0 text-center">
                   {c.photoUrl ? (
@@ -108,7 +108,7 @@ async function Titulo({ params }: { params: PageProps<"/titulo/[id]">["params"] 
                   <Link href={`/assistir/${e.id}`} className="flex items-center gap-4 px-4 py-3 hover:bg-border/40">
                     <span className="w-10 shrink-0 text-center text-lg font-semibold text-neutral-400">{e.episode ?? "?"}</span>
                     <span className="min-w-0 flex-1 truncate text-sm" title={e.filePath}>{basename(e.filePath)}</span>
-                    <span className="text-accent">▶</span>
+                    <span className="text-accent-fg">▶</span>
                   </Link>
                 </li>
               ))}

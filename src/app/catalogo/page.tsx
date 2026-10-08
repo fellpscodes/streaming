@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { PosterCard } from "@/components/PosterCard";
 import { CATEGORY_LABEL, filterOptions, listTitles } from "@/lib/catalog";
 import type { Category } from "@/lib/db";
+import { getScanState } from "@/lib/scanner/state";
 
 export const metadata = { title: "Catálogo · Streaming" };
 
@@ -76,11 +77,13 @@ async function Catalogo({ searchParams }: { searchParams: PageProps<"/catalogo">
       </form>
 
       {items.length === 0 ? (
-        <div className="rounded border border-dashed border-border p-10 text-center text-sm text-neutral-400">
-          {total === 0 ? (
+        <div className="rounded border border-dashed border-border p-10 text-center text-sm text-neutral-400" role="status">
+          {total === 0 && getScanState().running ? (
+            "Varredura em andamento… os títulos aparecem aqui assim que forem encontrados."
+          ) : total === 0 ? (
             <>
               Seu catálogo está vazio.{" "}
-              <Link href="/configuracoes" className="text-accent underline">Configure uma pasta e rode o scan.</Link>
+              <Link href="/configuracoes" className="text-accent-fg underline">Configure uma pasta e rode o scan.</Link>
             </>
           ) : filtered ? (
             "Nenhum título encontrado com esses filtros."
