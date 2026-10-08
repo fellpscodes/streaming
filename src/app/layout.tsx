@@ -1,6 +1,9 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
+import { Suspense } from "react";
+import { NavLinks, NavLinksFallback } from "@/components/NavLinks";
+import { ScanBadge } from "@/components/ScanBadge";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -25,17 +28,21 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
-        <header className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-8">
-          <Link href="/" className="text-lg font-bold tracking-tight text-accent">
+        <a href="#conteudo" className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-50 focus:rounded focus:bg-accent focus:px-3 focus:py-2 focus:text-white">
+          Pular para o conteúdo
+        </a>
+        <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3 sm:px-8">
+          <Link href="/" className="text-lg font-bold tracking-tight text-accent-fg">
             Streaming
           </Link>
-          <nav className="flex gap-5 text-sm text-neutral-300">
-            <Link href="/" className="hover:text-white">Início</Link>
-            <Link href="/catalogo" className="hover:text-white">Catálogo</Link>
-            <Link href="/configuracoes" className="hover:text-white">Configurações</Link>
-          </nav>
+          <div className="flex items-center gap-3 sm:gap-5">
+            <ScanBadge />
+            <Suspense fallback={<NavLinksFallback />}>
+              <NavLinks />
+            </Suspense>
+          </div>
         </header>
-        <main className="flex-1 px-4 py-6 sm:px-8">{children}</main>
+        <main id="conteudo" className="flex-1 px-4 py-6 sm:px-8">{children}</main>
       </body>
     </html>
   );
