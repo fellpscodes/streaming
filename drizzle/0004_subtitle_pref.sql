@@ -1,0 +1,1 @@
+ALTER TABLE `titles` ADD `subtitle_pref` text;

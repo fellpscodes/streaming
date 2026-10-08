@@ -1,0 +1,1 @@
+ALTER TABLE `titles` ADD `skip_marks` text;

@@ -12,6 +12,23 @@ export type Category = "movie" | "series" | "anime";
 export type TitleStatus = "ok" | "needs_review";
 /** Tipo de conteúdo da pasta-mãe: "auto" deixa o scanner e os metadados decidirem. */
 export type FolderKind = "auto" | Category;
+/**
+ * Legenda escolhida pelo usuário para um título. Guarda a DESCRIÇÃO da faixa (não o id, que muda de
+ * um arquivo para outro) para reaplicar nos demais episódios.
+ */
+export interface SubtitlePref {
+  /** true = "Sem legenda". */
+  off: boolean;
+  origin?: "embedded" | "external";
+  label?: string;
+  lang?: string | null;
+}
+/** Marcas manuais de abertura/encerramento, em segundos; valem para o título inteiro. */
+export interface SkipMarks {
+  introStart?: number | null;
+  introEnd?: number | null;
+  outroStart?: number | null;
+}
 export type MetadataStatus = "pending" | "found" | "not_found";
 export interface CastMember {
   name: string;
@@ -57,6 +74,10 @@ export const titles = sqliteTable(
     rating: real("rating"), // 0–10
     genres: text("genres", { mode: "json" }).$type<string[]>(),
     cast: text("cast", { mode: "json" }).$type<CastMember[]>(),
+    // Legenda preferida neste título (vale para todos os episódios).
+    subtitlePref: text("subtitle_pref", { mode: "json" }).$type<SubtitlePref>(),
+    // Abertura/encerramento marcados à mão (usados quando o arquivo não tem capítulos).
+    skipMarks: text("skip_marks", { mode: "json" }).$type<SkipMarks>(),
   },
   (t) => [unique().on(t.folderId, t.sourceKey), index("titles_status").on(t.status)],
 );

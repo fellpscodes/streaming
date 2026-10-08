@@ -29,6 +29,20 @@
       "when": 1791469765962,
       "tag": "0003_folder_kind",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1791471079679,
+      "tag": "0004_subtitle_pref",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1791472614832,
+      "tag": "0005_skip_marks",
+      "breakpoints": true
     }
   ]
 }
