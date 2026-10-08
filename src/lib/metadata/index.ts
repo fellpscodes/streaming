@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { db, titles } from "@/lib/db";
+import { db, libraryFolders, titles } from "@/lib/db";
 import { searchAniList } from "./anilist";
 import { searchJikan } from "./jikan";
 import { searchTmdb } from "./tmdb";
@@ -22,7 +22,8 @@ interface Lookup {
   category: Title["category"];
 }
 
-async function lookup(t: Title): Promise<Lookup | null> {
+/** locked = categoria definida pelo usuário (título corrigido à mão ou pasta com tipo): não reclassifica. */
+async function lookup(t: Title, locked: boolean): Promise<Lookup | null> {
   const q: Query = { name: t.name, year: t.year };
 
   if (t.category === "anime") {
@@ -35,7 +36,7 @@ async function lookup(t: Title): Promise<Lookup | null> {
   const tmdb = await searchTmdb(t.category === "movie" ? "movie" : "tv", q);
   if (tmdb) {
     // Japonês + animação no TMDB => anime. Texto em pt-BR do TMDB, imagens/nota/elenco do AniList.
-    if (tmdb.looksLikeAnime && !t.manual) {
+    if (tmdb.looksLikeAnime && !locked) {
       const a = await animeLookup(q);
       if (a) return { meta: { ...a, tmdbId: tmdb.tmdbId, overview: tmdb.overview ?? a.overview }, category: "anime" };
       return { meta: tmdb, category: "anime" };
@@ -44,7 +45,7 @@ async function lookup(t: Title): Promise<Lookup | null> {
   }
 
   // Fora do TMDB: pode ser um anime que só existe no AniList/Jikan.
-  if (!t.manual) {
+  if (!locked) {
     const a = await animeLookup(q);
     if (a) return { meta: a, category: "anime" };
   }
@@ -63,6 +64,7 @@ export interface EnrichResult {
  */
 export async function enrichPending(onProgress?: (done: number, total: number, name: string) => void): Promise<EnrichResult> {
   const pending = db.select().from(titles).where(eq(titles.metadataStatus, "pending")).all();
+  const kinds = new Map(db.select().from(libraryFolders).all().map((f) => [f.id, f.kind]));
   const result: EnrichResult = { fetched: 0, skipped: 0, warnings: [] };
   const warned = new Set<string>();
 
@@ -70,7 +72,7 @@ export async function enrichPending(onProgress?: (done: number, total: number, n
   for (const t of pending) {
     onProgress?.(done, pending.length, t.name);
     try {
-      const r = await lookup(t);
+      const r = await lookup(t, t.manual || (kinds.get(t.folderId) ?? "auto") !== "auto");
       if (r) {
         db.update(titles)
           .set({

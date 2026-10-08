@@ -97,7 +97,10 @@ export function startMetadata(): boolean {
 
 /** Sincroniza uma pasta-mãe com o banco numa transação. Exportada para testes. */
 export function persistFolder(folderId: number, files: FoundFile[], onFile?: (name: string) => void) {
+  const kind = db.select({ kind: libraryFolders.kind }).from(libraryFolders).where(eq(libraryFolders.id, folderId)).get()?.kind ?? "auto";
   const groups = groupFiles(files);
+  // Pasta marcada como Filmes/Séries/Animes: a escolha do usuário vale mais que a detecção.
+  if (kind !== "auto") for (const g of groups) g.category = kind;
 
   db.transaction((tx) => {
     const keepTitleIds: number[] = [];
@@ -121,7 +124,7 @@ export function persistFolder(folderId: number, files: FoundFile[], onFile?: (na
           category = existing.category;
         } else {
           // "anime" vem dos metadados; o scanner só distingue filme/série, então não rebaixa.
-          if (existing.category === "anime" && category === "series") category = "anime";
+          if (kind === "auto" && existing.category === "anime" && category === "series") category = "anime";
           // Nome ou tipo (filme/série) mudou: o metadado cacheado deixou de valer.
           const renamed = existing.name !== name || existing.category !== category;
           tx.update(titles)

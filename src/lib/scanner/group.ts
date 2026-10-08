@@ -72,7 +72,8 @@ export function evaluateTitle(t: {
   if (!t.manual && isSuspectTitle(t.name)) reasons.push("Nome do título não reconhecido");
 
   if (t.category !== "movie") {
-    const missing = t.episodes.filter((e) => e.episode === null || e.season === null).length;
+    // Um único arquivo sem número (filme/OVA numa pasta de séries ou animes) é normal, não é erro.
+    const missing = t.episodes.length > 1 ? t.episodes.filter((e) => e.episode === null || e.season === null).length : 0;
     if (missing > 0) reasons.push(`${missing} arquivo(s) sem temporada/episódio reconhecido`);
     const seen = new Set<string>();
     let dup = 0;

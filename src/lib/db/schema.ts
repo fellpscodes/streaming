@@ -10,6 +10,8 @@ import {
 
 export type Category = "movie" | "series" | "anime";
 export type TitleStatus = "ok" | "needs_review";
+/** Tipo de conteúdo da pasta-mãe: "auto" deixa o scanner e os metadados decidirem. */
+export type FolderKind = "auto" | Category;
 export type MetadataStatus = "pending" | "found" | "not_found";
 export interface CastMember {
   name: string;
@@ -20,6 +22,7 @@ export interface CastMember {
 export const libraryFolders = sqliteTable("library_folders", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   path: text("path").notNull().unique(),
+  kind: text("kind").$type<FolderKind>().notNull().default("auto"),
   createdAt: text("created_at")
     .notNull()
     .default(sql`CURRENT_TIMESTAMP`),

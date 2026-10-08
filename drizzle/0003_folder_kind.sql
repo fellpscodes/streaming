@@ -1,0 +1,1 @@
+ALTER TABLE `library_folders` ADD `kind` text DEFAULT 'auto' NOT NULL;
