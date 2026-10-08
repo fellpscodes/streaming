@@ -24,7 +24,15 @@ interface Lookup {
 
 /** locked = categoria definida pelo usuário (título corrigido à mão ou pasta com tipo): não reclassifica. */
 async function lookup(t: Title, locked: boolean): Promise<Lookup | null> {
-  const q: Query = { name: t.name, year: t.year };
+  const found = await lookupByName(t, t.name, locked);
+  if (found) return found;
+  // "12 Alguma Coisa" pode ser número de ordem da pasta: tenta de novo sem o número antes de desistir.
+  const bare = t.name.replace(/^\d{1,3}\s+(?=\S)/, "");
+  return bare !== t.name && /\p{L}/u.test(bare) ? lookupByName(t, bare, locked) : null;
+}
+
+async function lookupByName(t: Title, name: string, locked: boolean): Promise<Lookup | null> {
+  const q: Query = { name, year: t.year };
 
   if (t.category === "anime") {
     const a = await animeLookup(q);
@@ -66,7 +74,7 @@ export async function enrichPending(onProgress?: (done: number, total: number, n
   const pending = db.select().from(titles).where(eq(titles.metadataStatus, "pending")).all();
   const kinds = new Map(db.select().from(libraryFolders).all().map((f) => [f.id, f.kind]));
   const result: EnrichResult = { fetched: 0, skipped: 0, warnings: [] };
-  const warned = new Set<string>();
+  const pendingBy = new Map<string, number>(); // mensagem -> quantos títulos ficaram pendentes por causa dela
 
   let done = 0;
   for (const t of pending) {
@@ -99,14 +107,14 @@ export async function enrichPending(onProgress?: (done: number, total: number, n
     } catch (e) {
       if (!(e instanceof Unavailable)) throw e;
       result.skipped++; // continua "pending": será tentado no próximo scan
-      if (!warned.has(e.message)) {
-        warned.add(e.message);
-        result.warnings.push(e.message);
-      }
+      pendingBy.set(e.message, (pendingBy.get(e.message) ?? 0) + 1);
     }
     done++;
     await sleep(GAP_MS);
   }
+  result.warnings = [...pendingBy].map(
+    ([msg, n]) => `${msg}. ${n} título(s) ficaram sem metadado por isso e serão tentados de novo no próximo scan.`,
+  );
   onProgress?.(done, pending.length, "");
   return result;
 }

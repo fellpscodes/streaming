@@ -1,5 +1,6 @@
 import { asc, eq } from "drizzle-orm";
 import { db, episodes, titles, type Category } from "@/lib/db";
+import { compareEpisodes } from "@/lib/episodes";
 
 export const CATEGORY_LABEL: Record<Category, string> = { movie: "Filmes", series: "Séries", anime: "Animes" };
 
@@ -47,7 +48,7 @@ export function getTitleWithEpisodes(id: number) {
     .from(episodes)
     .where(eq(episodes.titleId, id))
     .all()
-    .sort((a, b) => (a.season ?? 999) - (b.season ?? 999) || (a.episode ?? 9999) - (b.episode ?? 9999));
+    .sort(compareEpisodes);
   return { title, episodes: eps };
 }
 

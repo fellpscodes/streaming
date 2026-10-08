@@ -77,13 +77,21 @@ describe("scan de pasta de teste", () => {
     expect(inc).toHaveLength(1);
   });
 
-  it("manda os mal formatados para correção manual", () => {
+  it("só manda para correção manual o que tem NOME ilegível", () => {
     const t = byName();
-    expect(t["Random Show"].status).toBe("needs_review");
     expect(t["!!!"].status).toBe("needs_review");
-    expect(t["Dup Show"].status).toBe("needs_review");
-    const review = Object.values(t).filter((x) => x.status === "needs_review").map((x) => x.sourceKey).sort();
-    expect(review).toEqual(["!!!", "Dup Show", "Random Show"]);
+    const review = Object.values(t).filter((x) => x.status === "needs_review").map((x) => x.sourceKey);
+    expect(review).toEqual(["!!!"]);
+  });
+
+  it("arquivos sem EP/temporada não pedem configuração: o nome do arquivo vira o episódio", () => {
+    const t = byName();
+    // "Random Show/video1.mkv" e "video2.mkv": nada reconhecido, e está tudo bem
+    expect(t["Random Show"]).toMatchObject({ status: "ok", category: "series" });
+    const eps = db.select().from(episodes).all().filter((e) => e.titleId === t["Random Show"].id);
+    expect(eps.map((e) => [e.season, e.episode])).toEqual([[null, null], [null, null]]);
+    // duas versões do mesmo S01E01 também não travam o catálogo
+    expect(t["Dup Show"].status).toBe("ok");
   });
 
   it("re-scan preserva correção manual e remove arquivos apagados", async () => {
@@ -104,5 +112,17 @@ describe("scan de pasta de teste", () => {
     const t = byName();
     expect(t["Random Show"]).toMatchObject({ name: "Meu Show", status: "ok" });
     expect(t["Friends"]).toBeUndefined();
+  });
+});
+
+describe("números de ordem compartilhados", () => {
+  const f = (...segs: string[]) => ({ absPath: "/m/" + segs.join("/"), segments: segs });
+  it("tira o número quando a coleção inteira é numerada, mas preserva '12 Monkeys' num catálogo comum", async () => {
+    const { groupFiles } = await import("@/lib/scanner/group");
+    const numerada = groupFiles([f("10 Koimonogatari", "a.mkv"), f("11 Tsukimonogatari", "b.mkv"), f("12 Koyomimonogatari", "c.mkv"), f("13 Owarimonogatari", "d.mkv")]);
+    expect(numerada.map((g) => g.name)).toEqual(["Koimonogatari", "Tsukimonogatari", "Koyomimonogatari", "Owarimonogatari"]);
+
+    const comum = groupFiles([f("12 Monkeys", "a.mkv"), f("Breaking Bad", "b.mkv"), f("Death Note", "c.mkv"), f("Dark", "d.mkv")]);
+    expect(comum.find((g) => g.sourceKey === "12 Monkeys")?.name).toBe("12 Monkeys");
   });
 });

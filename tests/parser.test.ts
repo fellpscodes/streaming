@@ -54,3 +54,17 @@ describe("acentos", () => {
     expect(p("Pokémon", "Pokémon Episódio 12.mkv")).toMatchObject({ title: "Pokémon", season: 1, episode: 12 });
   });
 });
+
+describe("número de ordem no nome da pasta", () => {
+  it("remove '10.', '01 -' e '3)' do começo, com ou sem ano", () => {
+    expect(p("10. Koimonogatari", "10. Koimonogatari - 01.mkv").title).toBe("Koimonogatari");
+    expect(p("14. Owarimonogatari 2nd Season", "ep.mkv").title).toBe("Owarimonogatari 2nd Season");
+    expect(p("01 - Bakemonogatari (2009)", "x.mkv")).toMatchObject({ title: "Bakemonogatari", year: 2009 });
+    expect(p("3) Death Note", "x.mkv").title).toBe("Death Note");
+  });
+  it("não mexe em títulos que começam com número", () => {
+    expect(p("12 Monkeys (1995)", "x.mkv")).toMatchObject({ title: "12 Monkeys", year: 1995 });
+    expect(p("2001 - A Space Odyssey", "x.mkv").title).toBe("2001 - A Space Odyssey");
+    expect(p("21 Jump Street", "x.mkv").title).toBe("21 Jump Street");
+  });
+});

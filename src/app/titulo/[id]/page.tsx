@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { EditTitle } from "@/components/EditTitle";
 import { Poster } from "@/components/Poster";
 import { CATEGORY_LABEL, getTitleWithEpisodes, seasonsOf } from "@/lib/catalog";
+import { fileTitle } from "@/lib/episodes";
 import { sized } from "@/lib/images";
 import { listContinueWatching } from "@/lib/progress";
 
@@ -15,8 +16,6 @@ export default function TituloPage(props: PageProps<"/titulo/[id]">) {
     </Suspense>
   );
 }
-
-const basename = (p: string) => p.split(/[\\/]/).pop() ?? p;
 
 async function Titulo({ params }: { params: PageProps<"/titulo/[id]">["params"] }) {
   await connection();
@@ -66,7 +65,7 @@ async function Titulo({ params }: { params: PageProps<"/titulo/[id]">["params"] 
               {first ? (
                 <Link href={`/assistir/${(cont ?? { episodeId: first.id }).episodeId}`} className="rounded bg-accent px-6 py-2.5 font-medium text-white">
                   {cont
-                    ? `▶ ${cont.positionSec > 0 ? "Continuar" : "Próximo"}${cont.isMovie ? "" : ` T${cont.season ?? "?"} E${cont.episode ?? "?"}`}`
+                    ? `▶ ${cont.positionSec > 0 ? "Continuar" : "Próximo"}${cont.isMovie || !cont.numbered ? "" : ` ${cont.label}`}`
                     : "▶ Assistir"}
                 </Link>
               ) : (
@@ -100,14 +99,16 @@ async function Titulo({ params }: { params: PageProps<"/titulo/[id]">["params"] 
         )}
 
         {seasons.map((s) => (
-          <section key={s.season ?? "x"}>
-            <h2 className="mb-3 text-lg font-semibold">{s.season == null ? "Sem temporada definida" : `Temporada ${s.season}`}</h2>
+          <section key={s.season ?? "x"} aria-labelledby={`temp-${s.season ?? "x"}`}>
+            <h2 id={`temp-${s.season ?? "x"}`} className="mb-3 text-lg font-semibold">
+              {s.season != null ? `Temporada ${s.season}` : seasons.length === 1 ? "Episódios" : "Outros arquivos"}
+            </h2>
             <ul className="divide-y divide-border rounded border border-border bg-surface">
-              {s.episodes.map((e) => (
+              {s.episodes.map((e, i) => (
                 <li key={e.id}>
                   <Link href={`/assistir/${e.id}`} className="flex items-center gap-4 px-4 py-3 hover:bg-border/40">
-                    <span className="w-10 shrink-0 text-center text-lg font-semibold text-neutral-400">{e.episode ?? "?"}</span>
-                    <span className="min-w-0 flex-1 truncate text-sm" title={e.filePath}>{basename(e.filePath)}</span>
+                    <span className="w-10 shrink-0 text-center text-lg font-semibold text-neutral-400">{e.episode ?? i + 1}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm" title={e.filePath}>{fileTitle(e.filePath)}</span>
                     <span className="text-accent-fg">▶</span>
                   </Link>
                 </li>

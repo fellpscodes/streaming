@@ -48,12 +48,27 @@ export function groupFiles(files: FoundFile[]): TitleGroup[] {
     g.episodes.push({ filePath: f.absPath, season: parsed.season, episode: parsed.episode });
   }
 
+  stripSharedNumbering([...groups.values()]);
+
   for (const g of groups.values()) {
     const hasEpisodeInfo = g.episodes.some((e) => e.episode !== null);
     g.category = hasEpisodeInfo || g.episodes.length > 1 ? "series" : "movie";
     g.episodes.sort((a, b) => (a.season ?? 99) - (b.season ?? 99) || (a.episode ?? 9999) - (b.episode ?? 9999));
   }
   return [...groups.values()];
+}
+
+const NUMBER_SPACE = /^\d{1,3}\s+(?=\S)/;
+
+/**
+ * Pastas numeradas só para ordenar ("10 Nome", "11 Outro", sem ponto nem traço): como "12 Monkeys" é um título
+ * legítimo, só tira o número quando é claramente um padrão da coleção (3+ pastas e 60% ou mais delas).
+ */
+function stripSharedNumbering(groups: TitleGroup[]) {
+  const folders = groups.filter((g) => !g.sourceKey.startsWith("~")); // episódios soltos na raiz não contam
+  const numbered = folders.filter((g) => NUMBER_SPACE.test(g.name) && /\p{L}/u.test(g.name.replace(NUMBER_SPACE, "")));
+  if (numbered.length < 3 || numbered.length / folders.length < 0.6) return;
+  for (const g of numbered) g.name = g.name.replace(NUMBER_SPACE, "");
 }
 
 export interface Evaluation {
@@ -71,20 +86,9 @@ export function evaluateTitle(t: {
   const reasons: string[] = [];
   if (!t.manual && isSuspectTitle(t.name)) reasons.push("Nome do título não reconhecido");
 
-  if (t.category !== "movie") {
-    // Um único arquivo sem número (filme/OVA numa pasta de séries ou animes) é normal, não é erro.
-    const missing = t.episodes.length > 1 ? t.episodes.filter((e) => e.episode === null || e.season === null).length : 0;
-    if (missing > 0) reasons.push(`${missing} arquivo(s) sem temporada/episódio reconhecido`);
-    const seen = new Set<string>();
-    let dup = 0;
-    for (const e of t.episodes) {
-      if (e.episode === null || e.season === null) continue;
-      const k = `${e.season}:${e.episode}`;
-      if (seen.has(k)) dup++;
-      seen.add(k);
-    }
-    if (dup > 0) reasons.push(`${dup} episódio(s) duplicado(s)`);
-  } else if (t.episodes.length > 1) {
+  // Episódio sem temporada/número NÃO precisa de correção: o nome do arquivo vira o título dele e a
+  // lista fica em ordem de nome. Só o nome do título e "vários vídeos em um filme" pedem revisão.
+  if (t.category === "movie" && t.episodes.length > 1) {
     reasons.push("Vários vídeos em um título marcado como filme");
   }
 

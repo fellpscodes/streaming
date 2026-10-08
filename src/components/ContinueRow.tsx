@@ -30,7 +30,7 @@ export function ContinueRow({ items }: { items: ContinueEntry[] }) {
                 <div className="p-2">
                   <p className="truncate text-sm font-medium" title={c.name}>{c.name}</p>
                   <p className="text-xs text-neutral-400">
-                    {c.isMovie ? "Filme" : `T${c.season ?? "?"} · E${c.episode ?? "?"}`}
+                    {c.isMovie ? "Filme" : c.label}
                     {c.positionSec > 0 ? " · continuar" : " · próximo"}
                   </p>
                 </div>

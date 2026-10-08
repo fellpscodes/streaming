@@ -51,10 +51,22 @@ function findYear(s: string): number | null {
 /** Remove acentos para os regex com \b funcionarem ("Episódio" -> "Episodio"). */
 const fold = (s: string) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
+/**
+ * Número de ordem no começo do nome da pasta, com separador explícito: "10. Nome", "01 - Nome", "3) Nome".
+ * Exige o espaço depois do separador para não confundir com "12.Monkeys" nem com anos ("2001 - ...").
+ */
+const ORDER_PREFIX = /^\s*\d{1,3}\s*[.)\-–]\s+(?=\S)/;
+
+export function stripOrderPrefix(name: string): string {
+  const rest = name.replace(ORDER_PREFIX, "");
+  return /\p{L}/u.test(rest) ? rest : name; // "1. 2024" ficaria sem título: mantém
+}
+
 export function cleanTitle(raw: string): string {
   // Detecção roda sobre a versão sem acento (mesmos índices, pois NFC é 1:1); o corte usa o texto original.
   let s = raw.normalize("NFC");
   s = s.replace(/^\s*(\[[^\]]*\]\s*)+/, ""); // tags de fansub no início: [SubsPlease]
+  s = stripOrderPrefix(s);
   const f = fold(s);
   const cuts: number[] = [];
   const y = findYearMatch(f);

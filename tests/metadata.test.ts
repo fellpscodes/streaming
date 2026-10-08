@@ -98,3 +98,18 @@ describe("metadados e cache", () => {
     expect(get("Novo").metadataStatus).toBe("pending");
   });
 });
+
+describe("número de ordem no nome", () => {
+  it('se "10 Naruto" não é achado, tenta de novo como "Naruto"', async () => {
+    const { db: d, titles: t } = await import("@/lib/db");
+    d.insert(t).values({ folderId: 1, sourceKey: "10 Naruto", name: "10 Naruto", category: "anime" }).run();
+    const queries: string[] = [];
+    vi.stubGlobal("fetch", (url: string, init?: { body?: string }) => {
+      if (url.includes("anilist")) queries.push(JSON.parse(init?.body ?? "{}").variables?.search);
+      return fakeFetch(url, init);
+    });
+    await enrichPending();
+    expect(queries.filter((q) => /Naruto/.test(q))).toEqual(["10 Naruto", "Naruto"]);
+    expect(get("10 Naruto")).toMatchObject({ metadataStatus: "found", metadataSource: "anilist" });
+  });
+});
