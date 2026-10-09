@@ -83,6 +83,8 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
   const [now, setNow] = useState(0); // posição atual (s), para decidir quando mostrar "Pular abertura"
   const [dur, setDur] = useState(0);
   const [markOpen, setMarkOpen] = useState(false);
+  // Estado da legenda ASS, para a falha nunca ser silenciosa.
+  const [subStatus, setSubStatus] = useState<{ state: "off" | "loading" | "ready" | "error"; msg?: string }>({ state: "off" });
   const [playing, setPlaying] = useState(false);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
@@ -162,17 +164,73 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
     (async () => {
       await jassubRef.current?.destroy();
       jassubRef.current = null;
-      if (!track || cancelled) return;
+      if (!track || cancelled) {
+        setSubStatus({ state: "off" });
+        return;
+      }
       if (track.format === "vtt") {
+        setSubStatus({ state: "ready" });
         trackEl = document.createElement("track");
         Object.assign(trackEl, { kind: "subtitles", label: track.label, src: track.url, default: true });
         video.appendChild(trackEl);
         trackEl.track.mode = "showing";
         return;
       }
-      const { default: JASSUB } = await import("jassub");
-      if (cancelled) return;
-      jassubRef.current = new JASSUB({ video, subUrl: track.url, fonts: subs.fonts }) as unknown as JassubInstance;
+      setSubStatus({ state: "loading" });
+      try {
+        // Cada etapa tem nome e limite de tempo: se algo travar, a tela diz qual etapa e não fica "carregando" para sempre.
+        const t0 = performance.now();
+        const stage = <T,>(name: string, p: Promise<T>, ms: number) =>
+          Promise.race([
+            p.then((v) => {
+              console.info(`[legenda] ${name}: ${Math.round(performance.now() - t0)} ms`);
+              return v;
+            }),
+            new Promise<never>((_, rej) => setTimeout(() => rej(new Error(`travou na etapa "${name}" (mais de ${ms / 1000} s)`)), ms)),
+          ]);
+        const content = await stage("baixar o arquivo", fetch(track.url, { signal: AbortSignal.timeout(30000) }).then((res) => {
+          if (!res.ok) throw new Error(`o servidor respondeu ${res.status}`);
+          return res.text();
+        }), 30000);
+        if (cancelled) return;
+        const { default: JASSUB } = await stage("carregar o renderizador", import("jassub"), 20000);
+        if (cancelled) return;
+        const start = async (fonts: string[]) => {
+          const i = new JASSUB({ video, subContent: content, fonts }) as unknown as JassubInstance & { ready?: Promise<void> };
+          jassubRef.current = i;
+          try {
+            await stage(fonts.length ? "iniciar o renderizador" : "iniciar o renderizador (sem fontes)", Promise.resolve(i.ready), 15000);
+          } catch (err) {
+            await i.destroy?.();
+            if (jassubRef.current === i) jassubRef.current = null;
+            throw err;
+          }
+          return i;
+        };
+        let inst: JassubInstance;
+        try {
+          inst = await start(subs.fonts);
+        } catch (err) {
+          if (cancelled) return;
+          console.warn("[legenda] falhou com as fontes do arquivo; tentando só com a fonte padrão", err);
+          inst = await start([]);
+        }
+        if (cancelled) {
+          void inst.destroy?.();
+          return;
+        }
+        setSubStatus({ state: "ready" });
+        // O JASSUB só desenha quando chega um quadro novo; pausado, nenhum chega. Empurra 1 ms para gerar um.
+        setTimeout(() => {
+          if (cancelled) return;
+          if (video.paused && !video.seeking) video.currentTime = Math.min(video.duration || Infinity, video.currentTime + 0.001);
+          void inst.resize?.(true);
+        }, 400);
+      } catch (e) {
+        if (cancelled) return;
+        console.error("[legenda]", e);
+        setSubStatus({ state: "error", msg: e instanceof Error ? e.message : String(e) });
+      }
     })();
 
     return () => {
@@ -405,6 +463,7 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
           preload="auto"
           onLoadedMetadata={onLoadedMetadata}
           onTimeUpdate={(e) => setNow(e.currentTarget.currentTime)}
+          onSeeked={() => void jassubRef.current?.resize?.(true)}
           onDurationChange={(e) => setDur(e.currentTarget.duration)}
           onError={onVideoError}
           onPause={() => (setPlaying(false), save(), setUiVisible(true))}
@@ -433,6 +492,7 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
         </div>
       )}
 
+      <div className={`dc-wshade${uiVisible || !playing || phase !== "ready" ? "" : " idle"}`} aria-hidden="true" />
       <div className={`dc-wui${uiVisible || !playing || phase !== "ready" ? "" : " idle"}`}>
         <div className="dc-wtop">
           <div className="flex min-w-0 items-center gap-[18px]">
@@ -448,6 +508,7 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
                 {audioTracks.map((a) => <option key={a.index} value={a.index}>Áudio: {a.label}</option>)}
               </select>
             )}
+            {subStatus.state === "loading" && <span role="status" className="dc-wstat">Carregando legenda…</span>}
             {subs && subs.tracks.length > 0 && (
               <select aria-label="Legenda" value={subId} onChange={(e) => chooseSubtitle(e.target.value)} className="dc-wsel">
                 <option value="">Sem legenda</option>
@@ -563,6 +624,12 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
         </div>
       )}
 
+      {subStatus.state === "error" && (
+        <div role="alert" className="dc-wtoast">
+          <b>Legenda indisponível.</b> {subStatus.msg}
+          <button type="button" onClick={() => setSubId("")} className="dc-wtoast-x" aria-label="Fechar aviso">×</button>
+        </div>
+      )}
       {showIntroButton && (
         <button type="button" onClick={skipIntro} className="dc-wskip intro">Pular abertura</button>
       )}

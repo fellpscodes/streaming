@@ -150,6 +150,22 @@ export async function subtitleFile(episodeId: number, video: string, trackId: st
 }
 
 /** Extrai as fontes anexadas ao MKV (necessárias para o ASS ficar como o autor fez). */
+const dumping = new Map<string, Promise<void>>();
+
+/** Extrai TODAS as fontes anexadas de uma vez (um só ffmpeg); o player pede dezenas delas ao abrir o episódio. */
+function dumpFonts(key: string, dir: string, video: string, atts: Array<{ index: number; filename: string }>): Promise<void> {
+  let job = dumping.get(key);
+  if (!job) {
+    const args = ["-nostdin", "-y", "-v", "error"];
+    for (const a of atts) args.push(`-dump_attachment:${a.index}`, path.join(dir, `${a.index}${path.extname(a.filename).toLowerCase()}`));
+    args.push("-i", video);
+    // -dump_attachment grava e depois o ffmpeg reclama que falta saída; os arquivos já foram escritos.
+    job = run("ffmpeg", args, { maxBuffer: 8 * 1024 * 1024 }).then(() => {}, () => {}).finally(() => dumping.delete(key));
+    dumping.set(key, job);
+  }
+  return job;
+}
+
 export async function fontFile(episodeId: number, video: string, name: string): Promise<string | null> {
   const p = await probe(video);
   const att = p.attachments.find((a) => a.filename === name && FONT_EXT.test(a.filename));
@@ -158,8 +174,8 @@ export async function fontFile(episodeId: number, video: string, name: string): 
   const dir = await ensureDir(path.join("fonts", `${episodeId}-${Math.floor(st.mtimeMs)}`));
   const out = path.join(dir, `${att.index}${path.extname(att.filename).toLowerCase()}`);
   if (!(await exists(out))) {
-    // -dump_attachment grava e depois o ffmpeg reclama que falta saída; o arquivo já foi escrito.
-    await run("ffmpeg", ["-nostdin", "-y", "-v", "error", `-dump_attachment:${att.index}`, out, "-i", video]).catch(() => {});
+    const fonts = p.attachments.filter((a) => FONT_EXT.test(a.filename) || /font/i.test(a.mimetype ?? ""));
+    await dumpFonts(dir, dir, video, fonts);
   }
   return (await exists(out)) ? out : null;
 }

@@ -17,6 +17,7 @@ export function SettingsClient({ tmdbConfigured }: { tmdbConfigured: boolean }) 
   const [folders, setFolders] = useState<Folder[] | null>(null);
   const [picking, setPicking] = useState(false);
   const [scan, setScan] = useState<ScanState | null>(null);
+  const [version, setVersion] = useState<string | null>(null);
 
   const loadFolders = useCallback(async () => {
     setFolders(await (await fetch("/api/folders")).json());
@@ -24,6 +25,12 @@ export function SettingsClient({ tmdbConfigured }: { tmdbConfigured: boolean }) 
 
   useEffect(() => {
     fetch("/api/folders").then((r) => r.json()).then(setFolders);
+    fetch("/api/version")
+      .then((r) => r.json())
+      .then((v: { mode: string; builtAt: string | null }) =>
+        setVersion(v.builtAt ? `build de ${new Date(v.builtAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}` : v.mode),
+      )
+      .catch(() => {});
     const es = new EventSource("/api/scan/events");
     es.onmessage = (e) => {
       const s: ScanState = JSON.parse(e.data);
@@ -157,6 +164,7 @@ export function SettingsClient({ tmdbConfigured }: { tmdbConfigured: boolean }) 
           Revisar títulos
         </Link>
       </section>
+      {version && <p className="text-xs text-muted">Versão em execução: {version}</p>}
     </div>
   );
 }

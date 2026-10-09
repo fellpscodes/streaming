@@ -6,9 +6,12 @@ export function prefFromTrack(track: SubTrack | null): SubtitlePref {
   return track ? { off: false, origin: track.origin, label: track.label, lang: track.lang } : { off: true };
 }
 
-/** Sem preferência: a faixa marcada como padrão no arquivo, senão a primeira em português, senão nenhuma. */
+/**
+ * Sem preferência: a primeira faixa em português; se não houver, a marcada como padrão no arquivo; senão nenhuma.
+ * (A marca de "padrão" dos releases costuma ser o inglês, que não é o que quem usa o app em português espera ver.)
+ */
 export function defaultTrack(tracks: SubTrack[]): SubTrack | undefined {
-  return tracks.find((t) => t.isDefault) ?? tracks.find((t) => /portugu/i.test(t.label));
+  return tracks.find((t) => /portugu/i.test(t.label)) ?? tracks.find((t) => t.isDefault);
 }
 
 const norm = (s?: string | null) => (s ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").trim().toLowerCase();

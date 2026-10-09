@@ -13,8 +13,23 @@
   flex-direction: column;
   justify-content: space-between;
   pointer-events: none;
+  z-index: 3;
+  transition: opacity 0.4s;
+}
+/* O escurecimento fica ATRÁS da legenda (canvas do JASSUB): senão ela fica acinzentada quando os controles aparecem. */
+.dc-wshade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
   transition: opacity 0.4s;
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.7), transparent 22%, transparent 70%, rgba(0, 0, 0, 0.8));
+}
+.dc-wshade.idle {
+  opacity: 0;
+}
+.dc-watch canvas.JASSUB {
+  z-index: 2;
 }
 .dc-wui > * {
   pointer-events: auto;
@@ -72,6 +87,51 @@
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: 8px;
+}
+.dc-wstat {
+  align-self: center;
+  font-size: 13px;
+  line-height: 1.25;
+  color: #f1f0ec;
+  padding: 7px 10px;
+  max-width: 340px;
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.dc-wstat.err {
+  color: #ffb3b6;
+  border-color: rgba(255, 90, 95, 0.7);
+}
+/* Aviso de erro: fixo, não esmaece com os controles. */
+.dc-wtoast {
+  position: absolute;
+  left: 50%;
+  top: 76px;
+  z-index: 30;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(640px, calc(100% - 32px));
+  padding: 10px 14px;
+  border-radius: 3px;
+  background: rgba(20, 20, 20, 0.96);
+  border: 1px solid rgba(255, 90, 95, 0.8);
+  color: #f1f0ec;
+  font-size: 14px;
+}
+.dc-wtoast b {
+  color: #ffb3b6;
+}
+.dc-wtoast-x {
+  margin-left: 4px;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
 }
 .dc-wsel,
 .dc-wicon {

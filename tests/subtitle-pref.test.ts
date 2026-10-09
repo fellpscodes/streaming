@@ -14,9 +14,12 @@ describe("escolha da legenda a partir da preferência", () => {
   const pt = t("e2", "Português", { lang: "Português" });
   const en = t("e3", "Inglês", { lang: "Inglês" });
 
-  it("sem preferência: padrão do arquivo, senão português, senão nenhuma", () => {
+  it("sem preferência: português; sem português, o padrão do arquivo; senão nenhuma", () => {
     expect(pickTrack([en, pt], null)).toBe("e2");
-    expect(pickTrack([pt, t("e4", "Inglês", { isDefault: true })], null)).toBe("e4");
+    // o "padrão" do arquivo (quase sempre o inglês do release) NÃO vence uma faixa em português
+    expect(pickTrack([t("e4", "Inglês", { isDefault: true }), pt], null)).toBe("e2");
+    // sem português, vale o padrão do arquivo
+    expect(pickTrack([t("e4", "Inglês", { isDefault: true }), t("e5", "Espanhol")], null)).toBe("e4");
     expect(pickTrack([en], null)).toBe("");
   });
 
