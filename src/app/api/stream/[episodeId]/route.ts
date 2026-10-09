@@ -1,10 +1,9 @@
 import fs from "node:fs";
-import { Readable } from "node:stream";
 import { episodeFile } from "@/lib/media/episode";
 import { probe } from "@/lib/media/ffprobe";
 import { makePlan, type Mode } from "@/lib/media/plan";
 import { playablePath } from "@/lib/media/prepare";
-import { parseRange } from "@/lib/media/range";
+import { serveFile } from "@/lib/media/serve";
 
 const TYPES: Record<string, string> = { ".mp4": "video/mp4", ".m4v": "video/mp4", ".mov": "video/mp4", ".webm": "video/webm" };
 
@@ -35,17 +34,7 @@ const base = (type: string, size: number): Record<string, string> => ({
 export async function GET(req: Request, ctx: RouteContext<"/api/stream/[episodeId]">) {
   const r = await resolve(req, ctx);
   if (!r) return new Response("Vídeo indisponível (ainda não preparado?)", { status: 404 });
-
-  const range = parseRange(req.headers.get("range"), r.size);
-  if (range === "unsatisfiable") return new Response(null, { status: 416, headers: { "Content-Range": `bytes */${r.size}` } });
-
-  const { start, end } = range ?? { start: 0, end: r.size - 1 };
-  const stream = fs.createReadStream(r.file, { start, end });
-  req.signal.addEventListener("abort", () => stream.destroy()); // aba fechada / seek: para de ler o disco
-
-  const headers = base(r.type, end - start + 1);
-  if (range) headers["Content-Range"] = `bytes ${start}-${end}/${r.size}`;
-  return new Response(Readable.toWeb(stream) as ReadableStream, { status: range ? 206 : 200, headers });
+  return serveFile(req, r.file, r.size, r.type);
 }
 
 export async function HEAD(req: Request, ctx: RouteContext<"/api/stream/[episodeId]">) {
