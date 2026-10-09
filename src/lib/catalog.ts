@@ -2,7 +2,7 @@ import { asc, eq } from "drizzle-orm";
 import { db, episodes, titles, type Category } from "@/lib/db";
 import { compareEpisodes } from "@/lib/episodes";
 
-export const CATEGORY_LABEL: Record<Category, string> = { movie: "Filmes", series: "Séries", anime: "Animes" };
+export { CATEGORY_LABEL } from "@/lib/category";
 
 export type TitleRow = typeof titles.$inferSelect;
 

@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { clearFlight, REVEAL_KEY } from "@/lib/disc-flight";
+import { ArcDefs, DiscArt } from "./disc/DiscArt";
+import { IconBack, IconFull, IconMarks, IconMute, IconPause, IconPlayO, IconSkipNext, IconSkipPrev, IconVol } from "./disc/icons";
+import "./disc/disc.css";
+import "./disc/watch.css";
 
 interface SubTrack {
   id: string;
@@ -25,6 +30,9 @@ interface Props {
   prevHref: string | null;
   nextHref: string | null;
   startAt: number;
+  /** Capa e texto em arco do disco que gira enquanto o vídeo é preparado. */
+  cover: string | null;
+  discText: string;
 }
 
 interface Segment {
@@ -52,7 +60,7 @@ const fmt = (s: number) => {
 
 const post = (url: string, body: unknown) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
-export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHref, startAt }: Props) {
+export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHref, startAt, cover, discText }: Props) {
   const router = useRouter();
   const wrapRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -209,6 +217,28 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
     if (videoRef.current && skip?.intro) videoRef.current.currentTime = skip.intro.end;
   }
 
+  // Chegando do voo do disco na Home: o círculo se abre a partir do disco, que se desfaz.
+  useEffect(() => {
+    let reveal = false;
+    try {
+      reveal = sessionStorage.getItem(REVEAL_KEY) === "1";
+      sessionStorage.removeItem(REVEAL_KEY);
+    } catch {
+      /* sem armazenamento */
+    }
+    const wrap = wrapRef.current;
+    const flying = document.querySelectorAll<HTMLElement>(".dc-dart.flying");
+    if (!reveal || !wrap || matchMedia("(prefers-reduced-motion: reduce)").matches || flying.length === 0) {
+      clearFlight();
+      return;
+    }
+    const r0 = Math.min(innerWidth, innerHeight) * 0.25;
+    const R = Math.hypot(innerWidth, innerHeight) / 2;
+    wrap.animate([{ clipPath: `circle(${r0}px at 50% 50%)` }, { clipPath: `circle(${R}px at 50% 50%)` }], { duration: 800, easing: "cubic-bezier(.65,0,.2,1)" });
+    flying.forEach((el) => el.animate([{ scale: "1", opacity: 1 }, { scale: "1.3", opacity: 0 }], { duration: 650, easing: "ease-in", fill: "forwards" }).finished.then(() => el.remove(), () => el.remove()));
+    document.getElementById("dc-veil")?.classList.remove("on");
+  }, []);
+
   // O Next mantém as telas anteriores montadas (ocultas) para voltar rápido a elas. Sem isto, o vídeo da tela
   // que você deixou continua tocando por trás. Esconder a tela desmonta os efeitos, então pausa aqui.
   useEffect(
@@ -335,11 +365,14 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
   const showIntroButton = phase === "ready" && !ended && introWindow;
   const showNextButton = phase === "ready" && Boolean(nextHref) && (ended || (outroStart != null && now >= outroStart));
 
-  const sel = "rounded bg-black/70 px-2 py-1 text-sm text-white outline-none focus:ring-2 focus:ring-accent";
+  const segStyle = (s: Segment | null) =>
+    s && dur > 0 ? { left: `${(s.start / dur) * 100}%`, width: `${(Math.min(s.end, dur) - s.start) / dur * 100}%` } : { display: "none" };
+  const pct = dur > 0 ? Math.min(100, (now / dur) * 100) : 0;
 
   return (
     <div
       ref={wrapRef}
+      className={`dc-watch ${uiVisible || !playing ? "" : "cursor-none"}`}
       onMouseMove={poke}
       onTouchStart={poke}
       // Duplo clique no vídeo = tela cheia do CONTÊINER (com a legenda), não a nativa do <video>.
@@ -356,8 +389,8 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
         clearTimeout(clickTimer.current);
         clickTimer.current = setTimeout(togglePlay, 250);
       }}
-      className={`relative flex aspect-video max-h-[calc(100vh-3.5rem)] w-full items-center justify-center bg-black [&:fullscreen]:aspect-auto [&:fullscreen]:max-h-none ${uiVisible ? "" : "cursor-none"}`}
     >
+      <ArcDefs />
       <h1 className="sr-only">{title} — {subtitle}</h1>
       {streamUrl && (
         <video
@@ -378,167 +411,163 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
           onPlay={() => (setPlaying(true), setEnded(false), poke())}
           onVolumeChange={(e) => (setVolume(e.currentTarget.volume), setMuted(e.currentTarget.muted))}
           onEnded={() => (save(), setEnded(true))}
-          className="size-full"
+          className="absolute inset-0 size-full bg-black object-contain"
         />
       )}
 
       {phase === "preparing" && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 text-center" role="status" aria-live="polite">
-          <div className="size-8 animate-spin rounded-full border-2 border-border border-t-accent" />
-          <p className="text-sm text-neutral-300">
+        <div className="dc-prep" role="status" aria-live="polite">
+          <span className="dc-spin">
+            <DiscArt cover={cover} label={discText} />
+          </span>
+          <p>
             {mode === "compat" ? "Convertendo para H.264 em alta qualidade" : "Preparando o vídeo sem perda de qualidade"}
-            {progress > 0 && ` · ${Math.round(progress * 100)}%`}
+            {progress > 0 && <> · <b>{Math.round(progress * 100)}%</b></>}
           </p>
         </div>
       )}
       {phase === "error" && (
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center" role="alert">
+        <div className="dc-prep" role="alert">
           <p className="text-red-400">{error}</p>
-          <button onClick={switchToCompat} className="rounded bg-accent px-4 py-2 text-sm text-white">
-            Tentar modo compatível (H.264)
-          </button>
+          <button onClick={switchToCompat} className="dc-btn-play">Tentar modo compatível (H.264)</button>
         </div>
       )}
 
-      {/* Barra superior: voltar, título, faixas de áudio/legenda, tela cheia */}
-      <div
-        className={`pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between gap-3 bg-gradient-to-b from-black/80 to-transparent p-3 transition-opacity ${uiVisible || phase !== "ready" ? "opacity-100" : "opacity-0"}`}
-      >
-        <div className="pointer-events-auto min-w-0">
-          <Link href={backHref} className="text-sm text-neutral-300 hover:text-white">← Voltar</Link>
-          <p className="truncate font-medium">{title}</p>
-          <p className="truncate text-xs text-neutral-400">{subtitle}{mode === "compat" && " · modo compatível"}</p>
+      <div className={`dc-wui${uiVisible || !playing || phase !== "ready" ? "" : " idle"}`}>
+        <div className="dc-wtop">
+          <div className="flex min-w-0 items-center gap-[18px]">
+            <Link href={backHref} className="dc-wback"><IconBack />Voltar</Link>
+            <div className="dc-wtitle">
+              <b>{title}</b>
+              <span>{subtitle}{mode === "compat" && " · modo compatível"}</span>
+            </div>
+          </div>
+          <div className="dc-wtools">
+            {audioTracks.length > 1 && (
+              <select aria-label="Áudio" value={audioIndex ?? ""} onChange={(e) => changeAudio(Number(e.target.value))} className="dc-wsel">
+                {audioTracks.map((a) => <option key={a.index} value={a.index}>Áudio: {a.label}</option>)}
+              </select>
+            )}
+            {subs && subs.tracks.length > 0 && (
+              <select aria-label="Legenda" value={subId} onChange={(e) => chooseSubtitle(e.target.value)} className="dc-wsel">
+                <option value="">Sem legenda</option>
+                {subs.tracks.map((t) => <option key={t.id} value={t.id}>Legenda: {t.label}</option>)}
+              </select>
+            )}
+            {prevHref && <Link href={prevHref} className="dc-wicon" aria-label="Episódio anterior" title="Episódio anterior (p)"><IconSkipPrev /></Link>}
+            {nextHref && <Link href={nextHref} onClick={goNext} className="dc-wicon" aria-label="Pular para o próximo episódio" title="Próximo episódio (n)"><IconSkipNext /></Link>}
+            <button type="button" onClick={() => setMarkOpen((o) => !o)} className="dc-wicon" aria-label="Marcar abertura e encerramento" aria-expanded={markOpen} title="Abertura e encerramento"><IconMarks /></button>
+          </div>
         </div>
-        <div className="pointer-events-auto flex flex-wrap justify-end gap-2">
-          {audioTracks.length > 1 && (
-            <select aria-label="Áudio" value={audioIndex ?? ""} onChange={(e) => changeAudio(Number(e.target.value))} className={sel}>
-              {audioTracks.map((a) => <option key={a.index} value={a.index}>🔊 {a.label}</option>)}
-            </select>
-          )}
-          {subs && subs.tracks.length > 0 && (
-            <select aria-label="Legenda" value={subId} onChange={(e) => chooseSubtitle(e.target.value)} className={sel}>
-              <option value="">💬 Sem legenda</option>
-              {subs.tracks.map((t) => <option key={t.id} value={t.id}>💬 {t.label}</option>)}
-            </select>
-          )}
-          {prevHref && (
-            <Link href={prevHref} className={sel} aria-label="Episódio anterior" title="Episódio anterior (p)">⏮</Link>
-          )}
-          {nextHref && (
-            <Link href={nextHref} onClick={goNext} className={sel} aria-label="Pular para o próximo episódio" title="Próximo episódio (n)">⏭</Link>
-          )}
-          <button onClick={() => setMarkOpen((o) => !o)} className={sel} aria-label="Marcar abertura e encerramento" aria-expanded={markOpen} title="Abertura e encerramento">⏱</button>
+
+        {streamUrl && (
+        <div className="dc-wbottom">
+          <div className="dc-wbar">
+            <u style={segStyle(skip?.intro ?? null)} />
+            <u style={segStyle(skip?.outro ? { ...skip.outro, end: dur } : null)} />
+            <i style={{ width: `${pct}%` }} />
+            <input
+              type="range"
+              aria-label="Posição do vídeo"
+              aria-valuetext={`${fmt(now)} de ${fmt(dur)}`}
+              min={0}
+              max={dur || 0}
+              step={0.1}
+              value={Math.min(now, dur || 0)}
+              onChange={(e) => {
+                const v = videoRef.current;
+                if (v) v.currentTime = Number(e.target.value);
+                setNow(Number(e.target.value));
+              }}
+            />
+          </div>
+          <div className="dc-wctl">
+            <button type="button" className="dc-wbtn" onClick={togglePlay} aria-label={playing ? "Pausar" : "Reproduzir"} title="Reproduzir/pausar (espaço)">
+              {playing ? <IconPause /> : <IconPlayO />}
+            </button>
+            <button
+              type="button"
+              className="dc-wbtn"
+              onClick={() => {
+                const v = videoRef.current;
+                if (v) v.muted = !v.muted;
+              }}
+              aria-label={muted || volume === 0 ? "Ativar som" : "Silenciar"}
+              title="Silenciar (m)"
+            >
+              {muted || volume === 0 ? <IconMute /> : <IconVol />}
+            </button>
+            <input
+              type="range"
+              className="dc-wvol"
+              aria-label="Volume"
+              min={0}
+              max={1}
+              step={0.05}
+              value={muted ? 0 : volume}
+              onChange={(e) => {
+                const v = videoRef.current;
+                if (!v) return;
+                v.volume = Number(e.target.value);
+                v.muted = Number(e.target.value) === 0;
+              }}
+            />
+            <span className="dc-wtime">{fmt(now)} / {fmt(dur)}</span>
+            <span className="dc-wnote">{skip?.intro?.source === "chapters" ? "Abertura e encerramento detectados pelos capítulos" : ""}</span>
+            <button type="button" className="dc-wbtn ml-auto sm:ml-0" onClick={toggleFullscreen} aria-label="Tela cheia" title="Tela cheia (f)">
+              <IconFull />
+            </button>
+          </div>
         </div>
+        )}
       </div>
 
       {markOpen && skip && (
-        <div role="dialog" aria-label="Abertura e encerramento" className="absolute right-3 top-14 z-20 w-72 max-w-[calc(100%-1.5rem)] space-y-3 rounded-lg border border-border bg-surface/95 p-3 text-sm shadow-xl">
+        <div role="dialog" aria-label="Abertura e encerramento" className="dc-marks space-y-3">
           <div>
-            <p className="font-medium">Abertura</p>
+            <p className="font-bold">Abertura</p>
             {skip.intro ? (
-              <p className="text-xs text-neutral-400">
-                {fmt(skip.intro.start)}–{fmt(skip.intro.end)} · {skip.intro.source === "chapters" ? "detectada pelos capítulos do arquivo" : "marcada por você (vale para a série)"}
+              <p className="text-xs text-muted">
+                {fmt(skip.intro.start)}–{fmt(skip.intro.end)}, {skip.intro.source === "chapters" ? "detectada pelos capítulos do arquivo" : "marcada por você (vale para a série)"}
               </p>
             ) : (
-              <p className="text-xs text-neutral-400">
+              <p className="text-xs text-muted">
                 Não detectada.{skip.marks.introStart != null ? ` Início em ${fmt(skip.marks.introStart)}; falta marcar o fim.` : " Pause no começo e no fim dela e marque."}
               </p>
             )}
             {skip.intro?.source !== "chapters" && (
               <div className="mt-2 flex gap-2">
-                <button onClick={() => saveMarks({ introStart: now })} className="flex-1 rounded border border-border px-2 py-1.5 hover:border-accent">Início aqui</button>
-                <button onClick={() => saveMarks({ introEnd: now })} className="flex-1 rounded border border-border px-2 py-1.5 hover:border-accent">Fim aqui</button>
+                <button type="button" onClick={() => saveMarks({ introStart: now })} className="flex-1 rounded-[3px] border border-border px-2 py-1.5 hover:border-foreground">Início aqui</button>
+                <button type="button" onClick={() => saveMarks({ introEnd: now })} className="flex-1 rounded-[3px] border border-border px-2 py-1.5 hover:border-foreground">Fim aqui</button>
               </div>
             )}
           </div>
           <div>
-            <p className="font-medium">Encerramento</p>
+            <p className="font-bold">Encerramento</p>
             {skip.outro ? (
-              <p className="text-xs text-neutral-400">
-                a partir de {fmt(skip.outro.start)} · {skip.outro.source === "chapters" ? "detectado pelos capítulos do arquivo" : "marcado por você (vale para a série)"}
+              <p className="text-xs text-muted">
+                a partir de {fmt(skip.outro.start)}, {skip.outro.source === "chapters" ? "detectado pelos capítulos do arquivo" : "marcado por você (vale para a série)"}
               </p>
             ) : (
-              <p className="text-xs text-neutral-400">
+              <p className="text-xs text-muted">
                 Não detectado.{dur > 300 ? ` O botão de próximo episódio aparece nos últimos ${FALLBACK_OUTRO_SECONDS} s.` : " Marque onde ele começa."}
               </p>
             )}
             {skip.outro?.source !== "chapters" && (
-              <button onClick={() => saveMarks({ outroStart: now })} className="mt-2 w-full rounded border border-border px-2 py-1.5 hover:border-accent">Início do encerramento aqui</button>
+              <button type="button" onClick={() => saveMarks({ outroStart: now })} className="mt-2 w-full rounded-[3px] border border-border px-2 py-1.5 hover:border-foreground">Início do encerramento aqui</button>
             )}
           </div>
           {(skip.marks.introStart != null || skip.marks.introEnd != null || skip.marks.outroStart != null) && (
-            <button onClick={clearMarks} className="text-xs text-neutral-400 underline hover:text-white">Limpar marcas</button>
+            <button type="button" onClick={clearMarks} className="text-xs text-muted underline hover:text-white">Limpar marcas</button>
           )}
         </div>
       )}
 
-      {/* Controles próprios: iguais em qualquer navegador e sem o botão de tela cheia do <video>,
-          que não leva a legenda junto (o Firefox não permite esconder o nativo). */}
-      {streamUrl && (
-        <div
-          className={`absolute inset-x-0 bottom-0 z-10 flex items-center gap-2 bg-gradient-to-t from-black/85 to-transparent px-3 pb-3 pt-8 text-white transition-opacity sm:gap-3 ${uiVisible || !playing ? "opacity-100" : "pointer-events-none opacity-0"}`}
-        >
-          <button onClick={togglePlay} aria-label={playing ? "Pausar" : "Reproduzir"} title="Reproduzir/pausar (espaço)" className="flex size-9 shrink-0 items-center justify-center rounded text-xl hover:bg-white/15">
-            {playing ? "⏸" : "▶"}
-          </button>
-          <span className="w-12 shrink-0 text-right text-xs tabular-nums sm:w-14 sm:text-sm">{fmt(now)}</span>
-          <input
-            type="range"
-            aria-label="Posição do vídeo"
-            aria-valuetext={`${fmt(now)} de ${fmt(dur)}`}
-            min={0}
-            max={dur || 0}
-            step={0.1}
-            value={Math.min(now, dur || 0)}
-            onChange={(e) => {
-              const v = videoRef.current;
-              if (v) v.currentTime = Number(e.target.value);
-              setNow(Number(e.target.value));
-            }}
-            className="h-1.5 min-w-0 flex-1 cursor-pointer accent-[var(--accent)]"
-          />
-          <span className="w-12 shrink-0 text-xs tabular-nums text-neutral-300 sm:w-14 sm:text-sm">{fmt(dur)}</span>
-          <button
-            onClick={() => {
-              const v = videoRef.current;
-              if (v) v.muted = !v.muted;
-            }}
-            aria-label={muted || volume === 0 ? "Ativar som" : "Silenciar"}
-            title="Silenciar (m)"
-            className="flex size-9 shrink-0 items-center justify-center rounded hover:bg-white/15"
-          >
-            {muted || volume === 0 ? "🔇" : volume < 0.5 ? "🔉" : "🔊"}
-          </button>
-          <input
-            type="range"
-            aria-label="Volume"
-            min={0}
-            max={1}
-            step={0.05}
-            value={muted ? 0 : volume}
-            onChange={(e) => {
-              const v = videoRef.current;
-              if (!v) return;
-              v.volume = Number(e.target.value);
-              v.muted = Number(e.target.value) === 0;
-            }}
-            className="hidden w-20 shrink-0 cursor-pointer accent-[var(--accent)] sm:block"
-          />
-          <button onClick={toggleFullscreen} aria-label="Tela cheia" title="Tela cheia (f)" className="flex size-9 shrink-0 items-center justify-center rounded text-lg hover:bg-white/15">
-            ⛶
-          </button>
-        </div>
-      )}
-
       {showIntroButton && (
-        <button onClick={skipIntro} className="absolute bottom-24 right-4 z-10 rounded border border-white/40 bg-black/70 px-5 py-3 font-medium text-white shadow-lg backdrop-blur hover:bg-black/90">
-          Pular abertura ⏭
-        </button>
+        <button type="button" onClick={skipIntro} className="dc-wskip intro">Pular abertura</button>
       )}
       {showNextButton && nextHref && (
-        <Link href={nextHref} onClick={goNext} className="absolute bottom-24 right-4 z-10 rounded bg-accent px-5 py-3 font-medium text-white shadow-lg">
-          Próximo episódio ▶
-        </Link>
+        <Link href={nextHref} onClick={goNext} className="dc-wskip next">Próximo episódio</Link>
       )}
     </div>
   );

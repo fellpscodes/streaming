@@ -6,7 +6,7 @@ export const metadata = { title: "Configurações · Streaming" };
 export default function ConfiguracoesPage() {
   return (
     <div className="mx-auto max-w-3xl">
-      <h1 className="mb-6 text-2xl font-semibold">Configurações</h1>
+      <h1 className="mb-6 text-4xl font-black tracking-[-0.04em]">Configurações</h1>
       <SettingsClient tmdbConfigured={tmdbConfigured()} />
     </div>
   );

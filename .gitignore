@@ -15,6 +15,7 @@
 
 # next.js
 /.next/
+/.next-*/
 /out/
 
 # production
@@ -43,3 +44,6 @@ next-env.d.ts
 
 # app
 /data/
+
+# prévias de vídeo cortadas de episódios do usuário: conteúdo protegido, não vai para o repositório público
+/design/previews/

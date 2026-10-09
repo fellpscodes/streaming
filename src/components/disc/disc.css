@@ -1,0 +1,702 @@
+/*
+ * Caixa de CD, disco e prévia no topo. Portado do protótipo "Catálogo de discos".
+ * Tudo usa o prefixo dc- para não colidir com o resto do CSS.
+ */
+:root {
+  --dc-h0: 54vh; /* altura da prévia no topo da página */
+  --dc-h1: 34vh; /* altura depois de rolar */
+  --dc-W: clamp(150px, 12.5vw, 200px); /* largura da caixa */
+  --dc-ui: var(--font-ui), "Helvetica Neue", Arial, sans-serif;
+}
+
+/* ================= prévia no topo ================= */
+.dc-hero {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 0;
+  z-index: 20;
+  height: calc(var(--dc-h0) - (var(--dc-h0) - var(--dc-h1)) * var(--p, 0));
+  overflow: hidden;
+  background: #000;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.8);
+}
+.dc-hv {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.7s ease;
+}
+.dc-hv.on {
+  opacity: 1;
+}
+.dc-hv img,
+.dc-hv video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.dc-hv img.kb {
+  animation: dc-kb 22s ease-in-out infinite alternate;
+}
+@keyframes dc-kb {
+  from {
+    transform: scale(1.02);
+  }
+  to {
+    transform: scale(1.12) translate(-2%, 1%);
+  }
+}
+.dc-hv video {
+  opacity: 0;
+  transition: opacity 0.8s;
+}
+.dc-hv video.ready {
+  opacity: 1;
+}
+.dc-hshade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(90deg, rgba(10, 10, 10, 0.92) 0, rgba(10, 10, 10, 0.65) 32%, rgba(10, 10, 10, 0) 62%),
+    linear-gradient(0deg, var(--background) 0, rgba(20, 20, 20, 0) 34%),
+    linear-gradient(180deg, rgba(0, 0, 0, 0.6), transparent 22%);
+}
+.dc-hinfo {
+  position: absolute;
+  left: var(--gut);
+  right: var(--gut);
+  bottom: clamp(18px, 3.4vh, 40px);
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(16px, 2.4vw, 30px);
+  transform-origin: 0 100%;
+  transform: scale(calc(1 - 0.2 * var(--p, 0)));
+}
+.dc-hcase {
+  flex: none;
+  position: relative;
+  width: clamp(150px, 14vw, 210px);
+  aspect-ratio: 142/125;
+  border-radius: 4px;
+  background:
+    linear-gradient(162deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.04) 42%, rgba(255, 255, 255, 0.08)),
+    rgba(10, 10, 12, 0.4);
+  box-shadow: 0 18px 30px rgba(0, 0, 0, 0.7), inset 0 0 0 1px rgba(255, 255, 255, 0.4);
+}
+.dc-hcase img {
+  position: absolute;
+  left: 8%;
+  top: 2.6%;
+  width: 89.4%;
+  height: 94.8%;
+  object-fit: cover;
+  object-position: 50% 22%;
+}
+.dc-hcase::before {
+  content: "";
+  position: absolute;
+  left: 1.6%;
+  top: 3%;
+  bottom: 3%;
+  width: 5%;
+  background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.22) 0 1px, transparent 1px 4px);
+}
+.dc-hcase::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  background: linear-gradient(118deg, rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0.06) 30%, transparent 46%, transparent 74%, rgba(255, 255, 255, 0.1));
+}
+.dc-htext {
+  min-width: 0;
+  max-width: 640px;
+  transition: opacity 0.18s, transform 0.18s;
+}
+.dc-htext.swap {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.dc-hk {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+.dc-tag {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  font: 700 13px/1 var(--dc-ui);
+  letter-spacing: -0.01em;
+  padding: 5px 8px 6px;
+}
+.dc-tag.ghost {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px rgba(241, 240, 236, 0.8);
+}
+.dc-hero h1 {
+  margin: 0;
+  font: 900 clamp(38px, 5.6vw, 84px) / 0.9 var(--dc-ui);
+  letter-spacing: -0.05em;
+  text-wrap: balance;
+  text-shadow: 0 2px 20px rgba(0, 0, 0, 0.5);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  padding-bottom: 0.06em;
+}
+.dc-hero h1.long {
+  font-size: clamp(30px, 3.8vw, 58px);
+}
+.dc-hmeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 12px 0 0;
+  font-size: 15px;
+  color: #d8d6d1;
+}
+.dc-hmeta .sc {
+  font-weight: 800;
+  color: #fff;
+}
+.dc-hsyn {
+  margin: 8px 0 0;
+  max-width: 60ch;
+  font-size: 14.5px;
+  line-height: 1.45;
+  color: #bebcb7;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  opacity: calc(1 - var(--p, 0) * 2);
+}
+.dc-hact {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 16px;
+}
+.dc-btn-play {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  border: 0;
+  background: var(--foreground);
+  color: #111;
+  font: 800 16px var(--dc-ui);
+  letter-spacing: -0.01em;
+  padding: 10px 20px 10px 16px;
+  border-radius: 3px;
+  cursor: pointer;
+  text-decoration: none;
+}
+.dc-btn-play svg {
+  width: 15px;
+  height: 15px;
+  fill: currentColor;
+}
+.dc-btn-play:hover {
+  background: #fff;
+}
+.dc-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  border: 1.5px solid rgba(255, 255, 255, 0.65);
+  background: rgba(0, 0, 0, 0.35);
+  color: #fff;
+  font: 700 15px var(--dc-ui);
+  padding: 8px 16px;
+  border-radius: 3px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.dc-btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+.dc-round {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.65);
+  background: rgba(0, 0, 0, 0.35);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: #fff;
+}
+.dc-round svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.dc-hsrc {
+  margin-left: 6px;
+  font-size: 12.5px;
+  color: #b3b1ac;
+}
+
+/* ================= fileiras ================= */
+.dc-main {
+  padding-top: calc(var(--dc-h0) + 10px);
+  padding-bottom: 40px;
+}
+.dc-lane {
+  position: relative;
+  margin-top: 14px;
+}
+.dc-lane h2 {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0;
+  padding: 0 var(--gut);
+  font: 800 clamp(17px, 1.4vw, 21px) / 1.2 var(--dc-ui);
+  letter-spacing: -0.025em;
+}
+.dc-lane h2 span {
+  font: 500 13px var(--dc-ui);
+  color: var(--muted);
+  letter-spacing: 0;
+}
+.dc-track {
+  display: flex;
+  gap: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-behavior: smooth;
+  scrollbar-width: none;
+  padding: 14px var(--gut) 6px;
+  scroll-padding: 0 var(--gut);
+}
+.dc-track::-webkit-scrollbar {
+  display: none;
+}
+.dc-arrow {
+  position: absolute;
+  top: 34px;
+  bottom: 44px;
+  z-index: 5;
+  width: var(--gut);
+  min-width: 40px;
+  border: 0;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  background: rgba(20, 20, 20, 0.72);
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.dc-arrow svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.2s;
+}
+.dc-arrow:hover svg {
+  transform: scale(1.25);
+}
+.dc-arrow.l {
+  left: 0;
+}
+.dc-arrow.r {
+  right: 0;
+}
+.dc-arrow[hidden] {
+  display: none;
+}
+.dc-lane:hover .dc-arrow,
+.dc-arrow:focus-visible {
+  opacity: 1;
+}
+
+/* ----- a caixa de CD, de frente ----- */
+.dc-tile {
+  flex: none;
+  width: var(--dc-W);
+  transition: width 0.45s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* ao passar o mouse a caixa ganha espaço próprio para o disco sair: as vizinhas andam, nada fica por cima */
+.dc-tile.open {
+  width: calc(var(--dc-W) * 1.3);
+}
+.dc-cbtn {
+  display: block;
+  width: 100%;
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  text-decoration: none;
+}
+.dc-pack {
+  position: relative;
+  display: block;
+  width: var(--dc-W);
+  aspect-ratio: 142/125;
+  transition: opacity 0.3s;
+}
+.dc-jc {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: 4px;
+  background:
+    linear-gradient(162deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.03) 42%, rgba(255, 255, 255, 0.07)),
+    rgba(10, 12, 18, 0.55);
+  box-shadow: 0 10px 18px -8px rgba(0, 0, 0, 0.8);
+  transition: transform 0.45s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.45s;
+}
+.dc-jc img {
+  position: absolute;
+  left: 8%;
+  top: 2.6%;
+  width: 89.4%;
+  height: 94.8%;
+  object-fit: cover;
+  object-position: 50% 22%;
+}
+.dc-nocover {
+  position: absolute;
+  left: 8%;
+  top: 2.6%;
+  width: 89.4%;
+  height: 94.8%;
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  text-align: center;
+  font: 800 14px/1.2 var(--dc-ui);
+  background: linear-gradient(135deg, #2b2b30, #1a1a1d);
+  color: #d8d6d1;
+}
+.dc-jc::before {
+  content: "";
+  position: absolute;
+  left: 1.6%;
+  top: 3%;
+  bottom: 3%;
+  width: 5%;
+  border-radius: 2px;
+  background: repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.22) 0 1px, transparent 1px 4px);
+}
+.dc-jc::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 4px;
+  background:
+    linear-gradient(118deg, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0.05) 30%, transparent 46%, transparent 74%, rgba(255, 255, 255, 0.1)),
+    radial-gradient(circle at 96% 5%, rgba(255, 255, 255, 0.4) 0 2.2%, transparent 2.6%),
+    radial-gradient(circle at 96% 95%, rgba(255, 255, 255, 0.4) 0 2.2%, transparent 2.6%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.42), inset 6px 0 0 rgba(255, 255, 255, 0.05);
+}
+.dc-cbtn:focus-visible {
+  outline: none;
+}
+.dc-cbtn:focus-visible .dc-jc {
+  outline: 2px solid var(--foreground);
+  outline-offset: 3px;
+}
+.dc-tile.open .dc-jc {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 26px -10px rgba(0, 0, 0, 0.9);
+}
+.dc-tile:not(.open) .dc-cbtn:hover .dc-jc {
+  transform: translateY(-3px);
+}
+.dc-new {
+  position: absolute;
+  z-index: 3;
+  left: 11%;
+  top: 6%;
+  background: var(--accent);
+  color: #fff;
+  font: 800 11px/1 var(--dc-ui);
+  padding: 4px 6px 5px;
+}
+.dc-disc {
+  position: absolute;
+  z-index: 0;
+  left: 13.5%;
+  top: 50%;
+  width: 80%;
+  aspect-ratio: 1;
+  translate: 0 -50%;
+  transition: transform 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.1s;
+}
+.dc-tile.open .dc-disc {
+  transform: translateX(42%);
+}
+/* o disco é criado já com a caixa aberta: parte de dentro dela e desliza para fora */
+@starting-style {
+  .dc-tile.open .dc-disc {
+    transform: translateX(0);
+  }
+}
+.dc-track:has(.dc-tile.open) .dc-tile:not(.open) .dc-pack {
+  opacity: 0.55;
+}
+/* o título que está passando na prévia ganha uma marca vermelha */
+.dc-tile.current .dc-pack::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -7px;
+  height: 3px;
+  background: var(--accent);
+}
+.dc-cap {
+  display: block;
+  margin-top: 11px;
+  min-width: 0;
+  max-width: var(--dc-W);
+}
+.dc-cap b {
+  display: block;
+  font: 700 13.5px/1.25 var(--dc-ui);
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dc-cap span {
+  display: block;
+  font-size: 12.5px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dc-cap .dc-prog {
+  overflow: visible;
+}
+.dc-prog {
+  display: block;
+  height: 3px;
+  margin-top: 7px;
+  background: rgba(255, 255, 255, 0.2);
+}
+.dc-prog i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+/* o disco: arte inteira, título em arco em volta do furo */
+.dc-dart {
+  position: absolute;
+  inset: 0;
+  display: block;
+  border-radius: 50%;
+  background: var(--art) 50% 30% / cover, #8a8f99;
+  -webkit-mask: radial-gradient(circle closest-side, transparent 0 12%, #000 12.6%);
+  mask: radial-gradient(circle closest-side, transparent 0 12%, #000 12.6%);
+}
+.dc-dart::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle closest-side,
+    rgba(205, 214, 226, 0.55) 0 30%,
+    rgba(140, 150, 166, 0.95) 30.5% 32%,
+    rgba(225, 231, 240, 0.8) 32.5% 36.5%,
+    rgba(255, 255, 255, 0.95) 37% 37.6%,
+    transparent 38%
+  );
+}
+.dc-dart::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  mix-blend-mode: screen;
+  background: conic-gradient(
+    from 20deg,
+    transparent,
+    rgba(255, 130, 220, 0.22) 8%,
+    rgba(110, 220, 255, 0.26) 14%,
+    rgba(255, 250, 140, 0.18) 20%,
+    transparent 28%,
+    transparent 50%,
+    rgba(120, 255, 200, 0.18) 58%,
+    rgba(255, 130, 220, 0.22) 64%,
+    transparent 74%
+  );
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.6), inset 0 0 0 3px rgba(0, 0, 0, 0.18);
+}
+.dc-dart .arc {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+}
+.dc-dart .arc text {
+  font: 800 5.1px var(--dc-ui);
+  letter-spacing: 0.35px;
+  fill: #fff;
+  paint-order: stroke;
+  stroke: rgba(0, 0, 0, 0.55);
+  stroke-width: 0.9px;
+}
+.dc-tile.open .dc-dart {
+  animation: dc-rot 9s linear infinite;
+}
+@keyframes dc-rot {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.dc-dart.flying {
+  position: fixed;
+  inset: auto;
+  z-index: 70;
+  pointer-events: none;
+  animation: none;
+  filter: drop-shadow(0 20px 30px rgba(0, 0, 0, 0.6));
+}
+
+/* cortina escura durante o voo do disco */
+.dc-veil {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.6s;
+}
+.dc-veil.on {
+  opacity: 0.9;
+}
+
+/* ----- grade do catálogo: a caixa levanta e o disco aparece pela lateral, sem empurrar as vizinhas ----- */
+.dc-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(var(--dc-W), 1fr));
+  gap: 26px 18px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.dc-grid .dc-tile {
+  width: 100%;
+}
+.dc-grid .dc-tile.open {
+  width: 100%;
+  z-index: 3;
+}
+.dc-grid .dc-pack,
+.dc-grid .dc-cap {
+  width: 100%;
+  max-width: none;
+}
+.dc-grid .dc-tile {
+  position: relative;
+}
+.dc-grid .dc-disc {
+  width: 76%;
+}
+.dc-grid .dc-tile.open .dc-disc {
+  transform: translateX(30%);
+}
+
+@media (max-width: 760px) {
+  :root {
+    --dc-h0: 46vh;
+    --dc-h1: 30vh;
+    --dc-W: 128px;
+  }
+  .dc-hcase,
+  .dc-hsyn,
+  .dc-hsrc {
+    display: none;
+  }
+  .dc-hero h1,
+  .dc-hero h1.long {
+    font-size: 32px;
+  }
+  .dc-hmeta {
+    font-size: 13.5px;
+  }
+  .dc-track {
+    gap: 10px;
+  }
+  .dc-arrow {
+    display: none;
+  }
+  .dc-grid {
+    grid-template-columns: repeat(auto-fill, minmax(128px, 1fr));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dc-track {
+    scroll-behavior: auto;
+  }
+}
+
+/* ----- página do título ----- */
+.dc-bigcase {
+  width: clamp(190px, 21vw, 300px);
+}
+.dc-banner {
+  position: relative;
+  margin: -24px calc(var(--gut) * -1) 0;
+  padding: clamp(86px, 14vh, 140px) var(--gut) 34px;
+  overflow: hidden;
+}
+.dc-banner > img.bg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0.55;
+}
+.dc-banner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, rgba(10, 10, 10, 0.92) 0, rgba(10, 10, 10, 0.55) 45%, rgba(10, 10, 10, 0.2) 100%),
+    linear-gradient(0deg, var(--background) 0, rgba(20, 20, 20, 0) 40%);
+}
+.dc-banner > .in {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  gap: clamp(18px, 3vw, 40px);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+@media (max-width: 760px) {
+  .dc-banner > .in {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .dc-bigcase {
+    width: 200px;
+  }
+}

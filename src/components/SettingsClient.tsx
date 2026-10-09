@@ -74,7 +74,7 @@ export function SettingsClient({ tmdbConfigured }: { tmdbConfigured: boolean }) 
         </div>
       )}
       <section>
-        <h2 className="mb-3 text-lg font-medium">Pastas-mãe</h2>
+        <h2 className="mb-3 text-xl font-extrabold tracking-[-0.025em]">Pastas-mãe</h2>
         {picking ? (
           <FolderPicker onPick={addFolder} onCancel={() => setPicking(false)} />
         ) : (
@@ -119,7 +119,7 @@ export function SettingsClient({ tmdbConfigured }: { tmdbConfigured: boolean }) 
       </section>
 
       <section>
-        <h2 className="mb-3 text-lg font-medium">Varredura</h2>
+        <h2 className="mb-3 text-xl font-extrabold tracking-[-0.025em]">Varredura</h2>
         <button
           onClick={startScan}
           disabled={running || !folders?.length}
@@ -151,7 +151,7 @@ export function SettingsClient({ tmdbConfigured }: { tmdbConfigured: boolean }) 
       </section>
 
       <section>
-        <h2 className="mb-3 text-lg font-medium">Correção manual</h2>
+        <h2 className="mb-3 text-xl font-extrabold tracking-[-0.025em]">Correção manual</h2>
         <p className="mb-3 text-sm text-neutral-400">Títulos que o scanner não conseguiu reconhecer com segurança.</p>
         <Link href="/configuracoes/correcao" className="inline-block rounded border border-border px-4 py-2 text-sm hover:border-accent">
           Revisar títulos
