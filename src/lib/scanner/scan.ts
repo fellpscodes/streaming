@@ -3,6 +3,7 @@ import path from "node:path";
 import { and, eq, inArray, notInArray } from "drizzle-orm";
 import { db, episodes, libraryFolders, titles } from "@/lib/db";
 import { enrichPending } from "@/lib/metadata";
+import { enqueueMissingPreviews } from "@/lib/media/preview";
 import { evaluateTitle, groupFiles, type FoundFile } from "./group";
 import { VIDEO_EXTENSIONS } from "./parser";
 import { getScanState, resetScanState, updateScanState } from "./state";
@@ -77,6 +78,7 @@ async function run() {
 
   const review = db.select({ id: titles.id }).from(titles).where(eq(titles.status, "needs_review")).all().length;
   updateScanState({ running: false, phase: "done", current: null, warnings, titlesNeedingReview: review });
+  enqueueMissingPreviews(); // prévias em segundo plano, uma por vez; não atrasa o fim do scan
 }
 
 async function runMetadata() {
@@ -135,7 +137,7 @@ export function persistFolder(folderId: number, files: FoundFile[], onFile?: (na
       } else {
         titleId = tx
           .insert(titles)
-          .values({ folderId, sourceKey: g.sourceKey, name, year: g.year, category })
+          .values({ folderId, sourceKey: g.sourceKey, name, year: g.year, category, createdAt: Date.now() })
           .returning({ id: titles.id })
           .get().id;
       }

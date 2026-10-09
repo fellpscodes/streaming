@@ -54,6 +54,8 @@ export const titles = sqliteTable(
       .references(() => libraryFolders.id, { onDelete: "cascade" }),
     // Pasta do título relativa à pasta-mãe (ou o arquivo, se solto na raiz).
     sourceKey: text("source_key").notNull(),
+    // Quando o título entrou no catálogo (ms). 0 = anterior a este campo: não conta como "novo".
+    createdAt: integer("created_at").notNull().default(0),
     name: text("name").notNull(),
     year: integer("year"),
     category: text("category").$type<Category>().notNull(),

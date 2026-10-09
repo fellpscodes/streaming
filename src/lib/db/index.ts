@@ -18,7 +18,7 @@ function runMigrations(db: ReturnType<typeof drizzle<typeof schema>>) {
       migrate(db, { migrationsFolder: path.join(process.cwd(), "drizzle") });
       return;
     } catch (e) {
-      if (attempt >= 8 || !/already exists|locked|busy/i.test(String((e as { cause?: unknown }).cause ?? e))) throw e;
+      if (attempt >= 8 || !/already exists|duplicate column|locked|busy/i.test(String((e as { cause?: unknown }).cause ?? e))) throw e;
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 150 * attempt);
     }
   }
