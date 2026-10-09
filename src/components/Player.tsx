@@ -463,7 +463,14 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
           preload="auto"
           onLoadedMetadata={onLoadedMetadata}
           onTimeUpdate={(e) => setNow(e.currentTarget.currentTime)}
-          onSeeked={() => void jassubRef.current?.resize?.(true)}
+          onSeeked={() => {
+            // antes de o renderizador terminar de iniciar, o resize falha por dentro: ignora
+            try {
+              void Promise.resolve(jassubRef.current?.resize?.(true)).catch(() => {});
+            } catch {
+              /* ainda iniciando */
+            }
+          }}
           onDurationChange={(e) => setDur(e.currentTarget.duration)}
           onError={onVideoError}
           onPause={() => (setPlaying(false), save(), setUiVisible(true))}

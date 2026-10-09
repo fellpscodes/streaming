@@ -36,18 +36,21 @@ export const CaseTile = memo(function CaseTile({ t, tileKey, open = false, curre
   const label = `${t.name}${t.year ? `, ${t.year}` : ""}`;
   const pack = (
     <span className="dc-pack">
+      <span className="dc-base"><span className="dc-hub" /></span>
       {showDisc && (
         <span className="dc-disc">
           <DiscArt cover={t.poster} label={discLabel(t)} />
         </span>
       )}
       <span className="dc-jc">
-        {t.poster ? (
-          // eslint-disable-next-line @next/next/no-img-element -- capas vêm de CDNs externos, com srcset próprio
-          <img src={sized(t.poster, "w500") ?? undefined} srcSet={posterSrcSet(t.poster)} sizes="220px" alt="" loading="lazy" draggable={false} />
-        ) : (
-          <span className="dc-nocover">{t.name}</span>
-        )}
+        <span className="dc-lf">
+          {t.poster ? (
+            // eslint-disable-next-line @next/next/no-img-element -- capas vêm de CDNs externos, com srcset próprio
+            <img src={sized(t.poster, "w500") ?? undefined} srcSet={posterSrcSet(t.poster)} sizes="220px" alt="" loading="lazy" draggable={false} />
+          ) : (
+            <span className="dc-nocover">{t.name}</span>
+          )}
+        </span>
       </span>
       {t.isNew && !t.progress && <span className="dc-new">Novo</span>}
     </span>

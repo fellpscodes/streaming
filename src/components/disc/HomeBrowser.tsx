@@ -101,14 +101,17 @@ export function HomeBrowser({ data }: { data: HomeData }) {
     try {
       document.querySelectorAll("video").forEach((v) => v.pause());
       let disc: HTMLElement | null = null;
+      let pack: HTMLElement | null = null;
       if (key) {
         // a caixa fica onde está; se ainda estiver fechada, o disco desliza para fora primeiro
         if (openKey !== key) { setOpenKey(key); await sleep(reduced ? 50 : 800); }
-        disc = document.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"] .dc-dart`);
+        const tile = document.querySelector<HTMLElement>(`[data-key="${CSS.escape(key)}"]`);
+        disc = tile?.querySelector<HTMLElement>(".dc-dart") ?? null;
+        pack = tile?.querySelector<HTMLElement>(".dc-pack") ?? null;
       }
       await flyDisc({
+        pack: pack ?? document.querySelector<HTMLElement>(".dc-hcase"),
         disc,
-        heroCase: document.querySelector<HTMLElement>(".dc-hcase"),
         cover: t.poster,
         fallbackHTML: `<svg class="arc" viewBox="0 0 120 120" aria-hidden="true"><text><textPath href="#dc-arc">${esc(discLabel(t))}</textPath></text></svg>`,
         reduced,
