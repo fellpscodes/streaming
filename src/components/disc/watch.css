@@ -326,3 +326,11 @@
     padding-left: 0;
   }
 }
+
+/* Legenda do navegador (celulares): sem a caixa preta padrão; cor e contorno vêm do próprio arquivo de legenda. */
+.dc-watch video::cue {
+  background-color: transparent;
+  font: 600 18px/1.25 var(--dc-ui), sans-serif;
+  color: #fff;
+  text-shadow: 0 0 4px #000, 1px 1px 0 #000, -1px -1px 0 #000;
+}

@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
 import { ensureDir, exists } from "./cache";
+import { assToVtt } from "./ass-to-vtt";
 import { probe } from "./ffprobe";
 
 const run = promisify(execFile);
@@ -147,6 +148,17 @@ export async function subtitleFile(episodeId: number, video: string, trackId: st
     return { path: out, contentType: "text/x-ssa; charset=utf-8" };
   }
   return null;
+}
+
+/** Versão só texto (WebVTT) de uma legenda já extraída; VTT passa direto. */
+export async function subtitleVtt(f: SubFile): Promise<SubFile> {
+  if (f.path.endsWith(".vtt")) return f;
+  const out = `${f.path}.lite2.vtt`;
+  if (!(await exists(out))) {
+    await fs.writeFile(`${out}.part`, assToVtt(await fs.readFile(f.path, "utf8")));
+    await fs.rename(`${out}.part`, out);
+  }
+  return { path: out, contentType: "text/vtt; charset=utf-8" };
 }
 
 /** Extrai as fontes anexadas ao MKV (necessárias para o ASS ficar como o autor fez). */
