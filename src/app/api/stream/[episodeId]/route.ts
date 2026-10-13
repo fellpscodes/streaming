@@ -2,6 +2,7 @@ import fs from "node:fs";
 import { episodeFile } from "@/lib/media/episode";
 import { probe } from "@/lib/media/ffprobe";
 import { makePlan, type Mode } from "@/lib/media/plan";
+import { touch } from "@/lib/media/cache";
 import { playablePath } from "@/lib/media/prepare";
 import { serveFile } from "@/lib/media/serve";
 
@@ -19,6 +20,7 @@ async function resolve(req: Request, ctx: RouteContext<"/api/stream/[episodeId]"
   const file = await playablePath(ep.id, ep.filePath, p, plan);
   const st = await fs.promises.stat(file).catch(() => null);
   if (!st) return null;
+  void touch(file); // em uso: a limpeza do cache não pode apagar
   const ext = file.slice(file.lastIndexOf(".")).toLowerCase();
   return { file, size: st.size, type: TYPES[ext] ?? "video/mp4" };
 }

@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { CACHE_ROOT, ensureDir, exists, pruneVideoCache } from "./cache";
+import { CACHE_ROOT, ensureDir, exists, pruneVideoCache, touch } from "./cache";
 import { probe, type ProbeResult } from "./ffprobe";
 import { ffmpegArgs, makePlan, type Mode, type PlayPlan } from "./plan";
 
@@ -22,6 +22,22 @@ interface Job {
 }
 const g = globalThis as unknown as { __jobs?: Map<string, Job> };
 const jobs = (g.__jobs ??= new Map<string, Job>());
+
+/** No máximo 2 conversões ao mesmo tempo: pular vários episódios seguidos não pode travar o disco nem a máquina. */
+const MAX_JOBS = 2;
+const gq = globalThis as unknown as { __slots?: { running: number; waiting: Array<() => void> } };
+const slots = (gq.__slots ??= { running: 0, waiting: [] });
+function acquire(): Promise<void> {
+  if (slots.running < MAX_JOBS) {
+    slots.running++;
+    return Promise.resolve();
+  }
+  return new Promise((res) => slots.waiting.push(() => { slots.running++; res(); }));
+}
+function release() {
+  slots.running--;
+  slots.waiting.shift()?.();
+}
 
 /** Arquivo que será entregue ao navegador para este episódio+opções (original ou remux em cache). */
 export async function playablePath(episodeId: number, file: string, p: ProbeResult, plan: PlayPlan) {
@@ -45,7 +61,11 @@ export async function prepare(episodeId: number, file: string, opts: PlayOptions
   const plan = makePlan(file, p, opts);
   const out = await playablePath(episodeId, file, p, plan);
   await ensureDir("play");
-  if (plan.direct || (await exists(out))) return { state: "ready", plan };
+  if (plan.direct) return { state: "ready", plan };
+  if (await exists(out)) {
+    void touch(out);
+    return { state: "ready", plan };
+  }
 
   // Daqui até jobs.set() NÃO pode haver await: duas chamadas simultâneas (ex.: React em dev)
   // não podem iniciar dois ffmpeg escrevendo no mesmo arquivo.
@@ -59,6 +79,11 @@ export async function prepare(episodeId: number, file: string, opts: PlayOptions
   const j: Job = { progress: 0, done: false };
   jobs.set(out, j);
   const tmp = `${out}.part`;
+  void acquire().then(() => run(out, tmp, file, plan, p, j));
+  return { state: "preparing", progress: 0, plan };
+}
+
+function run(out: string, tmp: string, file: string, plan: PlayPlan, p: ProbeResult, j: Job) {
   const child = spawn("ffmpeg", ffmpegArgs(file, tmp, plan, p.video?.codec ?? ""), { stdio: ["ignore", "pipe", "pipe"] });
   let stderr = "";
   child.stderr.on("data", (d) => (stderr += d));
@@ -73,8 +98,10 @@ export async function prepare(episodeId: number, file: string, opts: PlayOptions
   child.on("error", (e) => {
     j.error = `ffmpeg não pôde ser iniciado: ${e.message}`;
     j.done = true;
+    release();
   });
   child.on("close", async (code) => {
+    release();
     if (code === 0) {
       await fs.rename(tmp, out);
       jobs.delete(out);
@@ -85,5 +112,4 @@ export async function prepare(episodeId: number, file: string, opts: PlayOptions
       j.done = true;
     }
   });
-  return { state: "preparing", progress: 0, plan };
 }

@@ -93,6 +93,7 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
   const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   /** Volta ao estado "preparando" ao trocar de áudio ou de modo. */
+  const [attempt, setAttempt] = useState(0); // aumenta para refazer o preparo com as mesmas opções
   function restart() {
     setPhase("preparing");
     setProgress(0);
@@ -129,7 +130,7 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
     return () => {
       cancelled = true;
     };
-  }, [episodeId, audioIndex, mode]);
+  }, [episodeId, audioIndex, mode, attempt]);
 
   // 2) Lista de legendas (uma vez por episódio). O servidor já diz qual faixa vem selecionada:
   //    a que você escolheu antes neste título (ou "sem legenda"), senão a padrão do arquivo.
@@ -168,12 +169,35 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
         setSubStatus({ state: "off" });
         return;
       }
-      if (track.format === "vtt") {
+      // Celular (toque): o desenho da legenda por cima do vídeo faz a imagem sumir em alguns aparelhos; usa a legenda do navegador, só texto.
+      const lite = track.format === "ass" && matchMedia("(pointer: coarse)").matches;
+      if (track.format === "vtt" || lite) {
         setSubStatus({ state: "ready" });
         trackEl = document.createElement("track");
-        Object.assign(trackEl, { kind: "subtitles", label: track.label, src: track.url, default: true });
+        Object.assign(trackEl, { kind: "subtitles", label: track.label, src: lite ? `${track.url}?as=vtt` : track.url, default: true });
         video.appendChild(trackEl);
         trackEl.track.mode = "showing";
+        if (lite) {
+          // a tela do celular é mais alta que a imagem: ancora as falas na borda da imagem, e não na borda da tela
+          const tops = new Map<VTTCue, boolean>(); // falas que o servidor marcou no topo (line:8%)
+          const place = () => {
+            const { clientWidth: ew, clientHeight: eh, videoWidth: vw, videoHeight: vh } = video;
+            const cues = trackEl?.track.cues;
+            if (!cues || !ew || !eh || !vw || !vh) return;
+            const pic = Math.min(eh, (ew * vh) / vw);
+            const top = ((eh - pic) / 2 / eh) * 100;
+            const bottom = ((eh + pic) / 2 / eh) * 100;
+            for (const c of Array.from(cues) as VTTCue[]) {
+              if (!tops.has(c)) tops.set(c, !c.snapToLines && c.line === 8);
+              c.snapToLines = false;
+              if (tops.get(c)) { c.line = top + 4; c.lineAlign = "start"; }
+              else if (100 - bottom >= 14) { c.line = bottom + 2; c.lineAlign = "start"; } // tela em pé: logo abaixo da imagem, na faixa preta
+              else { c.line = bottom - 5; c.lineAlign = "end"; }
+            }
+          };
+          trackEl.addEventListener("load", place);
+          video.addEventListener("loadedmetadata", place);
+        }
         return;
       }
       setSubStatus({ state: "loading" });
@@ -298,13 +322,31 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
   }, []);
 
   // O Next mantém as telas anteriores montadas (ocultas) para voltar rápido a elas. Sem isto, o vídeo da tela
-  // que você deixou continua tocando por trás. Esconder a tela desmonta os efeitos, então pausa aqui.
-  useEffect(
-    () => () => {
-      lastVideo.current?.pause();
-    },
-    [],
-  );
+  // que você deixou continua tocando por trás, e cada tela escondida segura uma conexão aberta com o servidor:
+  // o navegador só abre ~6 por vez, então depois de ir e voltar algumas vezes tudo trava. Ao esconder, pausa
+  // e solta o arquivo; ao voltar, recoloca o vídeo no mesmo ponto.
+  const released = useRef<{ src: string; t: number } | null>(null);
+  const nowRef = useRef(0); // ao esconder a tela o navegador pode devolver um tempo errado; este é o último visto tocando
+  useEffect(() => {
+    const v = lastVideo.current;
+    const r = released.current;
+    if (v && r) {
+      released.current = null;
+      resumeAt.current = r.t; // onLoadedMetadata retoma deste ponto
+      v.src = r.src;
+    }
+    return () => {
+      const el = lastVideo.current;
+      if (!el) return;
+      el.pause();
+      const src = el.getAttribute("src");
+      if (src) {
+        released.current = { src, t: nowRef.current };
+        el.removeAttribute("src");
+        el.load();
+      }
+    };
+  }, []);
 
   // 4) Progresso: a cada 10 s tocando, ao pausar, ao sair da aba.
   const save = useCallback(
@@ -342,8 +384,17 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
     void v.play().catch(() => {});
   }
 
-  function onVideoError() {
+  async function onVideoError() {
     const v = videoRef.current;
+    // Arquivo sumiu do cache (apagado pela limpeza)? Não é falta de suporte do navegador: só prepara de novo, sem recodificar.
+    if (streamUrl) {
+      const gone = await fetch(streamUrl, { method: "HEAD" }).then((r) => r.status === 404, () => false);
+      if (gone) {
+        resumeAt.current = v?.currentTime || resumeAt.current;
+        restart();
+        return setAttempt((a) => a + 1);
+      }
+    }
     if (mode === "auto") {
       resumeAt.current = v?.currentTime || resumeAt.current;
       return switchToCompat();
@@ -462,7 +513,10 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
           disablePictureInPicture
           preload="auto"
           onLoadedMetadata={onLoadedMetadata}
-          onTimeUpdate={(e) => setNow(e.currentTarget.currentTime)}
+          onTimeUpdate={(e) => {
+            nowRef.current = e.currentTarget.currentTime;
+            setNow(e.currentTarget.currentTime);
+          }}
           onSeeked={() => {
             // antes de o renderizador terminar de iniciar, o resize falha por dentro: ignora
             try {
