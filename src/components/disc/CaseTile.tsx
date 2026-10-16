@@ -16,6 +16,8 @@ interface Props {
   current?: boolean;
   /** Com `href` a caixa é um link (catálogo); sem ele, um botão (Home). */
   href?: string;
+  /** Linha de baixo da legenda, no lugar da padrão (ano e episódios). */
+  caption?: string;
   onClick?: () => void;
   onPointerEnter?: (e: PointerEvent) => void;
   onPointerLeave?: (e: PointerEvent) => void;
@@ -24,7 +26,7 @@ interface Props {
 }
 
 /** A caixa de CD de frente; o disco só existe enquanto a caixa está aberta (nada pesado nas centenas de caixas fechadas). */
-export const CaseTile = memo(function CaseTile({ t, tileKey, open = false, current = false, href, onClick, onPointerEnter, onPointerLeave, onFocus, onBlur }: Props) {
+export const CaseTile = memo(function CaseTile({ t, tileKey, open = false, current = false, href, caption, onClick, onPointerEnter, onPointerLeave, onFocus, onBlur }: Props) {
   // mantém o disco montado um instante depois de fechar, para ele voltar deslizando para dentro da caixa
   const [keep, setKeep] = useState(false);
   useEffect(() => {
@@ -57,9 +59,9 @@ export const CaseTile = memo(function CaseTile({ t, tileKey, open = false, curre
   );
 
   const common = { className: "dc-cbtn", "aria-label": label, onPointerEnter, onPointerLeave, onFocus, onBlur } as const;
-  const sub = t.progress
+  const sub = caption ?? (t.progress
     ? t.progress.label
-    : [t.year, t.category === "movie" ? CATEGORY_LABEL.movie.slice(0, -1) : `${t.episodes} ep.`].filter(Boolean).join(", ");
+    : [t.year, t.category === "movie" ? CATEGORY_LABEL.movie.slice(0, -1) : `${t.episodes} ep.`].filter(Boolean).join(", "));
 
   return (
     <div className={`dc-tile${open ? " open" : ""}${current ? " current" : ""}`} data-tile={t.id} data-key={tileKey} role="listitem">

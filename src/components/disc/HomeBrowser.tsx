@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type PointerEvent } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState, type PointerEvent, type ReactNode } from "react";
 import type { HomeData } from "@/lib/home-types";
 import { clearFlight, flyDisc } from "@/lib/disc-flight";
 import { ArcDefs, discLabel } from "./DiscArt";
@@ -14,8 +14,11 @@ import "./disc.css";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
-/** Início: prévia no topo e fileiras de caixas de CD. Passar o mouse abre a caixa e troca a prévia; clicar leva ao player. */
-export function HomeBrowser({ data }: { data: HomeData }) {
+/**
+ * Início: prévia no topo e fileiras de caixas de CD. Passar o mouse abre a caixa e troca a prévia; clicar leva ao player.
+ * `trending` (Animes em Alta, buscado no servidor) entra logo abaixo da fileira de animes instalados.
+ */
+export function HomeBrowser({ data, trending }: { data: HomeData; trending?: ReactNode }) {
   const router = useRouter();
   const reduced = useReducedMotion();
   const byId = useMemo(() => new Map(data.titles.map((t) => [t.id, t])), [data.titles]);
@@ -158,26 +161,30 @@ export function HomeBrowser({ data }: { data: HomeData }) {
 
       <div className="dc-main">
         {data.lanes.map((lane) => (
-          <Lane key={lane.id} id={lane.id} label={lane.label} count={lane.ids.length} onPointerEnter={onLaneEnter} onPointerLeave={onLaneLeave}>
-            {lane.ids.map((id) => {
-              const t = byId.get(id)!;
-              const key = `${lane.id}:${id}`;
-              return (
-                <CaseTile
-                  key={key}
-                  t={t}
-                  tileKey={key}
-                  open={openKey === key}
-                  current={id === heroId}
-                  onClick={() => onTileClick(key, id)}
-                  onPointerEnter={onTileEnter(key, id)}
-                  onPointerLeave={onTileLeave}
-                  onFocus={onTileFocus(key, id)}
-                />
-              );
-            })}
-          </Lane>
+          <Fragment key={lane.id}>
+            <Lane id={lane.id} label={lane.label} count={lane.ids.length} onPointerEnter={onLaneEnter} onPointerLeave={onLaneLeave}>
+              {lane.ids.map((id) => {
+                const t = byId.get(id)!;
+                const key = `${lane.id}:${id}`;
+                return (
+                  <CaseTile
+                    key={key}
+                    t={t}
+                    tileKey={key}
+                    open={openKey === key}
+                    current={id === heroId}
+                    onClick={() => onTileClick(key, id)}
+                    onPointerEnter={onTileEnter(key, id)}
+                    onPointerLeave={onTileLeave}
+                    onFocus={onTileFocus(key, id)}
+                  />
+                );
+              })}
+            </Lane>
+            {lane.id === "anime" && trending}
+          </Fragment>
         ))}
+        {!data.lanes.some((l) => l.id === "anime") && trending}
       </div>
       <div id="dc-veil" className="dc-veil" />
     </>

@@ -109,3 +109,9 @@ export const watchProgress = sqliteTable("watch_progress", {
   completed: integer("completed", { mode: "boolean" }).notNull().default(false),
   updatedAt: integer("updated_at").notNull(), // epoch ms
 });
+
+/** Configurações chave/valor do app (hoje: conexão com o qBittorrent). */
+export const appSettings = sqliteTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+});

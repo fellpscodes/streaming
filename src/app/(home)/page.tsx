@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { connection } from "next/server";
 import { HomeBrowser } from "@/components/disc/HomeBrowser";
+import { TrendingSection } from "@/components/disc/TrendingSection";
 import { db, libraryFolders } from "@/lib/db";
 import { getHomeData } from "@/lib/home";
 import { getScanState } from "@/lib/scanner/state";
@@ -42,7 +43,16 @@ async function HomeContent() {
       </div>
     );
   }
-  return <HomeBrowser data={data} />;
+  return (
+    <HomeBrowser
+      data={data}
+      trending={
+        <Suspense fallback={null}>
+          <TrendingSection />
+        </Suspense>
+      }
+    />
+  );
 }
 
 function HomeSkeleton() {
