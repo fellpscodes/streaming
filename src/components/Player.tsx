@@ -58,6 +58,33 @@ const fmt = (s: number) => {
   return h ? `${h}:${String(mm).padStart(2, "0")}:${ss}` : `${mm}:${ss}`;
 };
 
+const VOLUME_KEY = "player:volume";
+const VOLUME_STEP = 0.05;
+
+/** O volume escolhido vale para os próximos episódios (fica no navegador, não no servidor). */
+function loadVolume(): { volume: number; muted: boolean } | null {
+  try {
+    const saved = JSON.parse(localStorage.getItem(VOLUME_KEY) ?? "null");
+    if (saved && typeof saved.volume === "number" && saved.volume >= 0 && saved.volume <= 1) return { volume: saved.volume, muted: saved.muted === true };
+  } catch {
+    /* sem armazenamento ou valor inválido */
+  }
+  return null;
+}
+function saveVolume(volume: number, muted: boolean) {
+  try {
+    localStorage.setItem(VOLUME_KEY, JSON.stringify({ volume, muted }));
+  } catch {
+    /* sem armazenamento */
+  }
+}
+
+/**
+ * Tela cheia no <main> do layout, não no contêiner do player: o layout continua montado ao trocar de episódio,
+ * então a tela cheia segue para o próximo. Se fosse o contêiner, ele ficaria oculto (ou removido) e a tela travaria.
+ */
+const fullscreenHost = (wrap: HTMLElement | null) => wrap?.closest("main") ?? wrap;
+
 const post = (url: string, body: unknown) => fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
 
 export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHref, startAt, cover, discText }: Props) {
@@ -336,6 +363,12 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
       v.src = r.src;
     }
     return () => {
+      // Saiu desta tela: se nenhuma outra de assistir ficou visível (ex.: voltou ao título), sai da tela cheia.
+      // Indo para outro episódio a tela nova já existe, e a tela cheia continua.
+      setTimeout(() => {
+        const watching = [...document.querySelectorAll(".dc-watch, [data-watch-loading]")].some((w) => w.getClientRects().length > 0);
+        if (!watching && document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+      }, 300);
       const el = lastVideo.current;
       if (!el) return;
       el.pause();
@@ -418,7 +451,7 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
 
   const toggleFullscreen = useCallback(() => {
     if (document.fullscreenElement) void document.exitFullscreen();
-    else void wrapRef.current?.requestFullscreen();
+    else void fullscreenHost(wrapRef.current)?.requestFullscreen();
   }, []);
 
   // A legenda ASS é um canvas ao lado do <video>: só aparece em tela cheia se o CONTÊINER for o elemento em tela cheia.
@@ -429,7 +462,7 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
       if (document.fullscreenElement && document.fullscreenElement === videoRef.current && wrap) {
         // Troca direto para o contêiner, sem sair antes (sair gasta o gesto do usuário e o pedido seguinte falharia).
         // Se o navegador recusar, fica a tela cheia nativa em vez de expulsar o usuário dela.
-        wrap.requestFullscreen().catch(() => {});
+        fullscreenHost(wrap)?.requestFullscreen().catch(() => {});
         return;
       }
       // O tamanho mudou: o canvas das legendas precisa se ajustar ao novo quadro.
@@ -449,7 +482,14 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
         else v.pause();
       } else if (e.key === "ArrowRight") v.currentTime += 10;
       else if (e.key === "ArrowLeft") v.currentTime -= 10;
-      else if (e.key === "f") toggleFullscreen();
+      else if (e.key === "ArrowUp" || e.key === "ArrowDown") {
+        e.preventDefault(); // não rola a página
+        const delta = e.key === "ArrowUp" ? VOLUME_STEP : -VOLUME_STEP;
+        const next = Math.round(Math.min(1, Math.max(0, (v.muted ? 0 : v.volume) + delta)) / VOLUME_STEP) * VOLUME_STEP;
+        v.volume = Math.min(1, Math.max(0, next));
+        v.muted = v.volume === 0;
+        poke();
+      } else if (e.key === "f") toggleFullscreen();
       else if (e.key === "m") v.muted = !v.muted;
       else if (e.key === "n" && nextHref) {
         goNext();
@@ -505,6 +545,13 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
         <video
           ref={(el) => {
             videoRef.current = el;
+            if (el && el !== lastVideo.current) {
+              const saved = loadVolume();
+              if (saved) {
+                el.volume = saved.volume;
+                el.muted = saved.muted;
+              }
+            }
             if (el) lastVideo.current = el;
           }}
           key={streamUrl}
@@ -529,7 +576,12 @@ export function Player({ episodeId, title, subtitle, backHref, prevHref, nextHre
           onError={onVideoError}
           onPause={() => (setPlaying(false), save(), setUiVisible(true))}
           onPlay={() => (setPlaying(true), setEnded(false), poke())}
-          onVolumeChange={(e) => (setVolume(e.currentTarget.volume), setMuted(e.currentTarget.muted))}
+          onVolumeChange={(e) => {
+            const { volume: vol, muted: mut } = e.currentTarget;
+            setVolume(vol);
+            setMuted(mut);
+            saveVolume(vol, mut);
+          }}
           onEnded={() => (save(), setEnded(true))}
           className="absolute inset-0 size-full bg-black object-contain"
         />

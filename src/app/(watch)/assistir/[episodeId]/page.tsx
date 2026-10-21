@@ -12,7 +12,7 @@ export const metadata = { title: "Assistir · Streaming" };
 
 export default function AssistirPage(props: PageProps<"/assistir/[episodeId]">) {
   return (
-    <Suspense fallback={<div className="fixed inset-0 animate-pulse bg-black" aria-busy="true" aria-label="Carregando" />}>
+    <Suspense fallback={<div data-watch-loading className="fixed inset-0 animate-pulse bg-black" aria-busy="true" aria-label="Carregando" />}>
       <Assistir params={props.params} />
     </Suspense>
   );
