@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   distDir: process.env.NEXT_DIST_DIR ?? ".next",
   cacheComponents: true,
   partialPrefetching: true,
+  devIndicators: false, // esconde o "N" do Next no modo dev
 };
 
 export default nextConfig;
