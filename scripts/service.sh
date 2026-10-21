@@ -57,7 +57,7 @@ Type=simple
 WorkingDirectory=$PROJECT
 Environment=NODE_ENV=production
 Environment=PORT=$port
-ExecStart=$(command -v node) $PROJECT/node_modules/next/dist/bin/next start -H 127.0.0.1 -p $port
+ExecStart=$(command -v node) $PROJECT/node_modules/next/dist/bin/next start -H 0.0.0.0 -p $port
 Restart=on-failure
 RestartSec=3
 
