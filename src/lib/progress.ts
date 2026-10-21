@@ -3,6 +3,8 @@ import { db, episodes, titles, watchProgress } from "@/lib/db";
 import { compareEpisodes, episodeLabel } from "@/lib/episodes";
 
 export const COMPLETE_RATIO = 0.92;
+/** Abaixo disto o episódio só foi aberto: não conta como "em andamento". */
+export const MIN_RATIO = 0.01;
 
 export function saveProgress(episodeId: number, position: number, duration: number) {
   if (!Number.isFinite(position) || !Number.isFinite(duration) || duration <= 0) return false;
@@ -37,7 +39,7 @@ export interface ContinueEntry {
 
 /**
  * Para cada título com progresso: o episódio em andamento, ou o próximo se o último foi concluído.
- * Mais recentes primeiro. Títulos totalmente assistidos não aparecem.
+ * Mais recentes primeiro. Títulos totalmente assistidos não aparecem, e episódios só abertos (menos de 1%) não contam.
  */
 export function listContinueWatching(onlyTitleId?: number, limit = 20): ContinueEntry[] {
   const rows = db
@@ -46,7 +48,8 @@ export function listContinueWatching(onlyTitleId?: number, limit = 20): Continue
     .innerJoin(episodes, eq(episodes.id, watchProgress.episodeId))
     .innerJoin(titles, eq(titles.id, episodes.titleId))
     .all()
-    .filter((r) => onlyTitleId === undefined || r.t.id === onlyTitleId);
+    .filter((r) => onlyTitleId === undefined || r.t.id === onlyTitleId)
+    .filter((r) => r.p.completed || (r.p.durationSec > 0 && r.p.positionSec / r.p.durationSec >= MIN_RATIO));
 
   const latest = new Map<number, (typeof rows)[number]>();
   for (const r of rows.sort((a, b) => b.p.updatedAt - a.p.updatedAt)) if (!latest.has(r.t.id)) latest.set(r.t.id, r);

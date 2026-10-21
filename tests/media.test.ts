@@ -185,6 +185,9 @@ describe("progresso", () => {
     expect(getProgress(epId)?.completed).toBe(true);
     expect(listContinueWatching()[0]).toMatchObject({ episodeId: ep2, positionSec: 0 });
 
+    saveProgress(ep2, 10, 1400); // só abriu o próximo (menos de 1%): continua sugerido do início
+    expect(listContinueWatching()[0]).toMatchObject({ episodeId: ep2, positionSec: 0 });
+
     saveProgress(ep2, 1300, 1400);
     expect(listContinueWatching()).toHaveLength(0); // acabou o último episódio
     expect(saveProgress(epId, NaN, 10)).toBe(false);

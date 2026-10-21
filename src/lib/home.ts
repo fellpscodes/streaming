@@ -3,17 +3,17 @@ import { CATEGORY_LABEL, listTitles, type TitleRow } from "@/lib/catalog";
 import { compareEpisodes } from "@/lib/episodes";
 import type { CardTitle, HomeData, HomeLane } from "@/lib/home-types";
 import { previewReady } from "@/lib/media/preview";
-import { listContinueWatching } from "@/lib/progress";
+import { listContinueWatching, type ContinueEntry } from "@/lib/progress";
 
 const DAY = 24 * 3600 * 1000;
 const byRating = (a: TitleRow, b: TitleRow) => (b.rating ?? -1) - (a.rating ?? -1) || a.name.localeCompare(b.name, "pt-BR");
 
 /** Transforma linhas do banco no formato leve que vai ao navegador (com progresso, prévia e primeiro episódio). */
-export function toCards(rows: TitleRow[]): CardTitle[] {
+export function toCards(rows: TitleRow[], continuing: ContinueEntry[] = listContinueWatching(undefined, 500)): CardTitle[] {
   const eps = db.select().from(episodes).all();
   const byTitle = new Map<number, typeof eps>();
   for (const e of eps) byTitle.set(e.titleId, [...(byTitle.get(e.titleId) ?? []), e]);
-  const cont = new Map(listContinueWatching(undefined, 500).map((c) => [c.titleId, c]));
+  const cont = new Map(continuing.map((c) => [c.titleId, c]));
   const recent = Date.now() - 14 * DAY;
 
   return rows.map((t) => {
@@ -40,25 +40,30 @@ export function toCards(rows: TitleRow[]): CardTitle[] {
   });
 }
 
-/** Fileiras da Home: "Continuar", "Adicionados recentemente" e as três categorias (só as que têm títulos). */
+/**
+ * Fileiras da Home: "Continuar", "Adicionados recentemente" e as três categorias (só as que têm títulos).
+ * "Continuar" vem pelo último acesso; o que está nela não se repete em "Adicionados recentemente".
+ */
 export function getHomeData(): HomeData {
   const rows = listTitles();
   if (rows.length === 0) return { titles: [], lanes: [], heroId: null };
-  const titles = toCards(rows);
+  const continuing = listContinueWatching(undefined, 500);
+  const titles = toCards(rows, continuing);
   const rowById = new Map(rows.map((r) => [r.id, r]));
   const lanes: HomeLane[] = [];
   const add = (id: string, label: string, list: TitleRow[], min = 1, max = 24) => {
     if (list.length >= min) lanes.push({ id, label, ids: list.slice(0, max).map((r) => r.id) });
   };
 
-  const continueIds = titles.filter((t) => t.progress).map((t) => t.id);
+  const continueIds = continuing.map((c) => c.titleId).filter((i) => rowById.has(i));
+  const inContinue = new Set(continueIds);
   add("continuar", "Continuar assistindo", continueIds.map((i) => rowById.get(i)!), 1);
-  add("novos", "Adicionados recentemente", rows.filter((r) => r.createdAt > Date.now() - 14 * DAY).sort((a, b) => b.createdAt - a.createdAt), 1);
+  add("novos", "Adicionados recentemente", rows.filter((r) => r.createdAt > Date.now() - 14 * DAY && !inContinue.has(r.id)).sort((a, b) => b.createdAt - a.createdAt), 1);
   // As fileiras de categoria são só estas três, na ordem: Animes, Filmes, Séries (sem limite: a Home mostra todos).
   for (const cat of ["anime", "movie", "series"] as const) {
     add(cat, CATEGORY_LABEL[cat], rows.filter((r) => r.category === cat).sort(byRating), 1, Infinity);
   }
 
-  const hero = titles.find((t) => t.progress)?.id ?? [...rows].filter((r) => r.backdropUrl).sort(byRating)[0]?.id ?? rows[0].id;
+  const hero = continueIds[0] ?? [...rows].filter((r) => r.backdropUrl).sort(byRating)[0]?.id ?? rows[0].id;
   return { titles, lanes, heroId: hero };
 }

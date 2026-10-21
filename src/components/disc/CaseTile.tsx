@@ -73,7 +73,7 @@ export const CaseTile = memo(function CaseTile({ t, tileKey, open = false, curre
       <span className="dc-cap">
         <b>{t.name}</b>
         <span>{sub}</span>
-        {t.progress && (
+        {t.progress && t.progress.pct > 0 && (
           <span className="dc-prog" role="img" aria-label={`${Math.round(t.progress.pct)}% assistido`}>
             <i style={{ width: `${t.progress.pct}%` }} />
           </span>
